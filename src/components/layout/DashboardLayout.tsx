@@ -20,7 +20,8 @@ import {
   ChevronRight,
   FileText,
   Sun,
-  Moon
+  Moon,
+  Calculator
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -227,11 +228,15 @@ export default function DashboardLayout() {
            <div className="flex items-center gap-2 md:gap-4">
               <button 
                 onClick={() => setIsDarkMode(!isDarkMode)}
-                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors hidden sm:block"
                 title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
               >
                 {isDarkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5" />}
               </button>
+
+              <Link to="/app/calculator" className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                <Calculator className="w-5 h-5" />
+              </Link>
 
               {location.pathname === '/app' && (
                 <div className="flex items-center gap-2 md:gap-4 relative">
@@ -273,10 +278,10 @@ export default function DashboardLayout() {
                     )}
                   </AnimatePresence>
 
-                  <div className="h-8 w-[1px] bg-slate-100 dark:bg-slate-800 mx-1 md:mx-2"></div>
-                  <div className="bg-emerald-50 dark:bg-emerald-900/20 px-3 md:px-4 py-2 rounded-xl border border-emerald-100 dark:border-emerald-800/50 flex flex-col items-end">
-                     <p className="text-[8px] md:text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest leading-none">Net Balance</p>
-                     <p className="text-xs md:text-sm font-black text-emerald-700 dark:text-emerald-300 mt-1 whitespace-nowrap uppercase tracking-tighter">KES {netBalance.toLocaleString()}</p>
+                  <div className="h-8 w-[1px] bg-slate-100 dark:bg-slate-800 mx-1 md:mx-2 hidden sm:block"></div>
+                  <div className="bg-emerald-50 dark:bg-emerald-900/20 px-2 md:px-4 py-1.5 md:py-2 rounded-xl border border-emerald-100 dark:border-emerald-800/50 flex flex-col items-end">
+                     <p className="text-[7px] md:text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest leading-none">Net Balance</p>
+                     <p className="text-[10px] md:text-sm font-black text-emerald-700 dark:text-emerald-300 mt-1 whitespace-nowrap uppercase tracking-tighter">KES {netBalance.toLocaleString()}</p>
                   </div>
                 </div>
               )}

@@ -93,7 +93,7 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isSignedIn(); // Users need to see their own status or find others in business (could be restricted more)
+      allow read: if isSignedIn() && userId == request.auth.uid;
       allow write: if isSignedIn() && userId == request.auth.uid;
     }
 

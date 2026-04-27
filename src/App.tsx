@@ -15,6 +15,7 @@ import DebtsPage from './pages/DebtsPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 import MpesaReconciliationPage from './pages/MpesaReconciliationPage';
+import CalculatorPage from './pages/CalculatorPage';
 import AIAssistant from './components/ai/AIAssistant';
 
 function AuthenticatedApp({ children }: { children: React.ReactNode }) {
@@ -51,6 +52,7 @@ export default function App() {
                 <Route path="mpesa" element={<MpesaReconciliationPage />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="calculator" element={<CalculatorPage />} />
               </Route>
             </Routes>
           </BusinessProvider>

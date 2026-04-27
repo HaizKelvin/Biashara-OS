@@ -19,10 +19,22 @@ export default function FloatingCalculator() {
 
   const calculate = () => {
     try {
-      const fullEquation = equation + display;
-      // Note: In production use a safer math parser, but for this utility:
-      // eslint-disable-next-line no-eval
-      const result = eval(fullEquation.replace('×', '*').replace('÷', '/'));
+      const parts = equation.split(' ');
+      if (parts.length < 2) return;
+      
+      const num1 = parseFloat(parts[0]);
+      const operator = parts[1];
+      const num2 = parseFloat(display);
+      
+      let result = 0;
+      switch (operator) {
+        case '+': result = num1 + num2; break;
+        case '-': result = num1 - num2; break;
+        case '×': result = num1 * num2; break;
+        case '÷': result = num2 !== 0 ? num1 / num2 : 0; break;
+        default: return;
+      }
+      
       setDisplay(String(Number(result.toFixed(2))));
       setEquation('');
     } catch {

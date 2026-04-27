@@ -102,7 +102,7 @@ export default function LandingPage() {
               <Sparkles className="w-3.5 h-3.5" /> Made for Kenyan Entrepreneurs
             </div>
             
-            <h1 className="text-5xl md:text-8xl font-black tracking-tighter leading-[0.85] mb-10 italic">
+            <h1 className="text-4xl sm:text-5xl md:text-8xl font-black tracking-tighter leading-[0.95] md:leading-[0.85] mb-10 italic">
               Scale Your <span className="text-emerald-600 underline decoration-emerald-200 dark:decoration-emerald-900 underline-offset-[12px]">Biz</span> <br /> 
               With AI Power.
             </h1>
