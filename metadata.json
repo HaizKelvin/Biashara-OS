@@ -1,0 +1,6 @@
+{
+  "name": "Biashara",
+  "description": "A comprehensive business management system for Kenyan SMEs. Track sales, expenses, inventory, and M-Pesa reconciliations with AI-powered insights.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["business_management", "financial_tracking", "inventory_tracking"]
+}

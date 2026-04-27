@@ -1,0 +1,137 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "businessId": { "type": "string" },
+        "role": { "type": "string", "enum": ["owner", "staff"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "businessId", "role"]
+    },
+    "Business": {
+      "title": "Business",
+      "description": "Business profile settings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "currency": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "ownerId", "currency"]
+    },
+    "Sale": {
+      "title": "Sale",
+      "description": "A business sale transaction",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "amount": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["Cash", "M-Pesa", "Bank"] },
+        "customerName": { "type": "string" },
+        "notes": { "type": "string" },
+        "items": { "type": "array" },
+        "userId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "amount", "paymentMethod", "userId", "timestamp"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "A business expense",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "amount": { "type": "number" },
+        "category": { "type": "string", "enum": ["Rent", "Stock", "Transport", "Airtime", "Salary", "Other"] },
+        "description": { "type": "string" },
+        "userId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "amount", "category", "userId", "timestamp"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Inventory item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "quantity": { "type": "number" },
+        "costPrice": { "type": "number" },
+        "sellingPrice": { "type": "number" },
+        "lowStockThreshold": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "quantity", "costPrice", "sellingPrice"]
+    },
+    "Debt": {
+      "title": "Debt",
+      "description": "Customer debts (Okoa)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerName": { "type": "string" },
+        "amount": { "type": "number" },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "paid"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "customerName", "amount", "status"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Business alerts and notifications",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["info", "warning", "success", "error"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "message", "timestamp"]
+    }
+  },
+  "firestore": {
+    "businesses/{businessId}": {
+      "schema": "Business",
+      "description": "Main business document"
+    },
+    "businesses/{businessId}/users/{userId}": {
+      "schema": "User",
+      "description": "Users associated with a business"
+    },
+    "businesses/{businessId}/sales/{saleId}": {
+      "schema": "Sale",
+      "description": "Sales history for a business"
+    },
+    "businesses/{businessId}/expenses/{expenseId}": {
+      "schema": "Expense",
+      "description": "Expenses history for a business"
+    },
+    "businesses/{businessId}/inventory/{productId}": {
+      "schema": "Product",
+      "description": "Inventory list for a business"
+    },
+    "businesses/{businessId}/debts/{debtId}": {
+      "schema": "Debt",
+      "description": "Debts owed to the business"
+    },
+    "businesses/{businessId}/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Business notifications"
+    },
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Root user profiles for discovery"
+    }
+  }
+}

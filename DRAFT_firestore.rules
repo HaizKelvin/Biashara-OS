@@ -1,0 +1,134 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitives
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isOwner(businessId) {
+      return isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid;
+    }
+    function isMember(businessId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/businesses/$(businessId)/users/$(request.auth.uid));
+    }
+    function isSelf(businessId, userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    function isVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    // Validation Helpers
+    function isValidBusiness(data) {
+      return data.keys().hasAll(['id', 'name', 'ownerId', 'currency', 'createdAt']) &&
+             data.keys().size() == 5 &&
+             data.id is string && data.id.size() <= 64 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.ownerId == request.auth.uid &&
+             data.currency == 'KES' &&
+             data.createdAt == request.time;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'businessId', 'role', 'createdAt']) &&
+             data.keys().size() == 6 &&
+             data.uid == request.auth.uid &&
+             data.email is string && data.email.size() <= 100 &&
+             data.role in ['owner', 'staff'] &&
+             data.createdAt == request.time;
+    }
+
+    function isValidSale(data) {
+      return data.keys().hasAll(['id', 'amount', 'paymentMethod', 'userId', 'timestamp']) &&
+             data.id is string && data.id.size() <= 64 &&
+             data.amount is number && data.amount > 0 &&
+             data.paymentMethod in ['Cash', 'M-Pesa', 'Bank'] &&
+             data.userId == request.auth.uid &&
+             data.timestamp == request.time;
+    }
+
+    function isValidExpense(data) {
+      return data.keys().hasAll(['id', 'amount', 'category', 'userId', 'timestamp']) &&
+             data.id is string && data.id.size() <= 64 &&
+             data.amount is number && data.amount > 0 &&
+             data.category in ['Rent', 'Stock', 'Transport', 'Airtime', 'Salary', 'Other'] &&
+             data.userId == request.auth.uid &&
+             data.timestamp == request.time;
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['id', 'name', 'quantity', 'costPrice', 'sellingPrice']) &&
+             data.id is string && data.id.size() <= 64 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.quantity is number &&
+             data.costPrice is number && data.costPrice >= 0 &&
+             data.sellingPrice is number && data.sellingPrice >= 0;
+    }
+
+    function isValidDebt(data) {
+      return data.keys().hasAll(['id', 'customerName', 'amount', 'status']) &&
+             data.id is string && data.id.size() <= 64 &&
+             data.customerName is string && data.customerName.size() <= 100 &&
+             data.amount is number && data.amount > 0 &&
+             data.status in ['pending', 'paid'];
+    }
+
+    // Collections
+    match /businesses/{businessId} {
+      allow get: if isSignedIn() && (existing().ownerId == request.auth.uid || isMember(businessId));
+      allow create: if isSignedIn() && isValidBusiness(incoming()) && isValidId(businessId);
+      allow update: if isSignedIn() && isOwner(businessId) && 
+                      incoming().ownerId == existing().ownerId &&
+                      incoming().id == existing().id &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'currency']);
+
+      match /users/{userId} {
+        allow read: if isMember(businessId);
+        allow create: if isSignedIn() && isValidUser(incoming()) && (isOwner(businessId) || userId == request.auth.uid);
+        allow update: if isMember(businessId) && (isOwner(businessId) || isSelf(businessId, userId)) &&
+                        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email']) &&
+                        incoming().uid == existing().uid;
+        allow delete: if isOwner(businessId) && userId != request.auth.uid;
+      }
+
+      match /sales/{saleId} {
+        allow read: if isMember(businessId);
+        allow create: if isMember(businessId) && isValidSale(incoming()) && isValidId(saleId);
+        allow update: if false; // Sales are immutable records of transaction
+        allow delete: if isOwner(businessId);
+      }
+
+      match /expenses/{expenseId} {
+        allow read: if isMember(businessId);
+        allow create: if isMember(businessId) && isValidExpense(incoming()) && isValidId(expenseId);
+        allow update: if false;
+        allow delete: if isOwner(businessId);
+      }
+
+      match /inventory/{productId} {
+        allow read: if isMember(businessId);
+        allow create: if isMember(businessId) && isValidProduct(incoming()) && isValidId(productId);
+        allow update: if isMember(businessId) && isValidProduct(incoming()) &&
+                        incoming().id == existing().id;
+        allow delete: if isOwner(businessId);
+      }
+
+      match /debts/{debtId} {
+        allow read: if isMember(businessId);
+        allow create: if isMember(businessId) && isValidDebt(incoming()) && isValidId(debtId);
+        allow update: if isMember(businessId) && 
+                        incoming().diff(existing()).affectedKeys().hasOnly(['status']) &&
+                        existing().status == 'pending'; // Terminal state lock: once paid, it's paid
+        allow delete: if isOwner(businessId);
+      }
+    }
+  }
+}
