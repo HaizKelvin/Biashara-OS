@@ -59,7 +59,7 @@ export default function VoiceEntry({ onEntry, type }: VoiceEntryProps) {
     <div className="relative">
       <Button 
         onClick={startRecording}
-        variant={isRecording ? 'destructive' : 'outline'}
+        variant={isRecording ? 'danger' : 'outline'}
         className={cn(
           "rounded-2xl gap-2 font-bold transition-all",
           isRecording && "animate-pulse"

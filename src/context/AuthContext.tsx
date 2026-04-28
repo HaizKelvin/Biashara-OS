@@ -42,8 +42,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signInWithGoogle = async () => {
-    const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    try {
+      const provider = new GoogleAuthProvider();
+      // Using popup as it's more reliable in most hosted environments
+      await signInWithPopup(auth, provider);
+    } catch (error: any) {
+      console.error("Sign-in error:", error);
+      if (error.code === 'auth/unauthorized-domain') {
+        alert(`Domain error: Please add this domain to the Firebase Console Authorized Domains list.\n\nError: ${error.message}`);
+      } else {
+        alert(`Login failed: ${error.message}`);
+      }
+      throw error;
+    }
   };
 
   const signOutUser = async () => {

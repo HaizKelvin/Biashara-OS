@@ -18,6 +18,10 @@ interface BusinessContextType {
   loading: boolean;
   createBusiness: (name: string) => Promise<void>;
   netBalance: number;
+  sales: any[];
+  expenses: any[];
+  inventory: any[];
+  debts: any[];
 }
 
 const BusinessContext = createContext<BusinessContextType | undefined>(undefined);
@@ -27,6 +31,10 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
   const [business, setBusiness] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [netBalance, setNetBalance] = useState(0);
+  const [sales, setSales] = useState<any[]>([]);
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [inventory, setInventory] = useState<any[]>([]);
+  const [debts, setDebts] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user) {
@@ -36,17 +44,17 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
     }
 
     setLoading(true);
-    // 1. Get user profile to find businessId
     const userRef = doc(db, 'users', user.uid);
     const unsubscribeUser = onSnapshot(userRef, async (userDoc) => {
       if (userDoc.exists()) {
         const userData = userDoc.data();
         if (userData.businessId) {
           const bizRef = doc(db, 'businesses', userData.businessId);
-          const bizDoc = await getDoc(bizRef);
-          if (bizDoc.exists()) {
-            setBusiness(bizDoc.data());
-          }
+          onSnapshot(bizRef, (bizDoc) => {
+            if (bizDoc.exists()) {
+              setBusiness({ ...bizDoc.data(), id: bizDoc.id });
+            }
+          });
         }
       } else {
         setBusiness(null);
@@ -59,38 +67,64 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribeUser();
   }, [user]);
 
-  // Real-time balance tracking
+  // Real-time tracking of all business entities
   useEffect(() => {
     if (!business?.id) {
       setNetBalance(0);
+      setSales([]);
+      setExpenses([]);
+      setInventory([]);
+      setDebts([]);
       return;
     }
 
     const salesRef = collection(db, `businesses/${business.id}/sales`);
     const expensesRef = collection(db, `businesses/${business.id}/expenses`);
-
-    let currentSales = 0;
-    let currentExpenses = 0;
+    const inventoryRef = collection(db, `businesses/${business.id}/inventory`);
+    const debtsRef = collection(db, `businesses/${business.id}/debts`);
 
     const unsubscribeSales = onSnapshot(salesRef, (snapshot) => {
-      currentSales = snapshot.docs.reduce((acc, doc) => acc + (doc.data().amount || 0), 0);
-      setNetBalance(currentSales - currentExpenses);
+      const salesData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      setSales(salesData);
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, `businesses/${business.id}/sales`);
     });
 
     const unsubscribeExpenses = onSnapshot(expensesRef, (snapshot) => {
-      currentExpenses = snapshot.docs.reduce((acc, doc) => acc + (doc.data().amount || 0), 0);
-      setNetBalance(currentSales - currentExpenses);
+      const expensesData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      setExpenses(expensesData);
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, `businesses/${business.id}/expenses`);
+    });
+
+    const unsubscribeInventory = onSnapshot(inventoryRef, (snapshot) => {
+      const inventoryData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      setInventory(inventoryData);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, `businesses/${business.id}/inventory`);
+    });
+
+    const unsubscribeDebts = onSnapshot(debtsRef, (snapshot) => {
+      const debtsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      setDebts(debtsData);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, `businesses/${business.id}/debts`);
     });
 
     return () => {
       unsubscribeSales();
       unsubscribeExpenses();
+      unsubscribeInventory();
+      unsubscribeDebts();
     };
   }, [business?.id]);
+
+  // Calculate net balance reactively based on fetched sales and expenses
+  useEffect(() => {
+    const totalSales = sales.reduce((acc, sale) => acc + (sale.amount || 0), 0);
+    const totalExpenses = expenses.reduce((acc, exp) => acc + (exp.amount || 0), 0);
+    setNetBalance(totalSales - totalExpenses);
+  }, [sales, expenses]);
 
   const createBusiness = async (name: string) => {
     if (!user) return;
@@ -128,7 +162,16 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <BusinessContext.Provider value={{ business, loading, createBusiness, netBalance }}>
+    <BusinessContext.Provider value={{ 
+      business, 
+      loading, 
+      createBusiness, 
+      netBalance,
+      sales,
+      expenses,
+      inventory,
+      debts
+    }}>
       {children}
     </BusinessContext.Provider>
   );

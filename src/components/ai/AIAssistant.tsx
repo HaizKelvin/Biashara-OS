@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bot, Send, X, MessageSquare, Sparkles, TrendingUp, AlertTriangle } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { getAIAdvisory } from '../../services/geminiService';
@@ -10,11 +11,11 @@ import { useLanguage } from '../../context/LanguageContext';
 export default function AIAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<{role: 'user' | 'bot', content: string}[]>([
-    { role: 'bot', content: "Habari! Mimi ni Biashara AI. Naweza kukusaidia aje kukuza biashara yako leo? (Welcome! I am Biashara AI. How can I help you grow your business today?)" }
+    { role: 'bot', content: "Habari! Mimi ni AI Business Assistant wako. Naweza kukusaidia aje kuchanganua data yako au kukuza biashara leo? (I am your AI Business Assistant. How can I help you analyze your data or grow your business today?)" }
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const { business } = useBusiness();
+  const { business, netBalance, sales, expenses, inventory } = useBusiness();
   const { t } = useLanguage();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -32,16 +33,23 @@ export default function AIAssistant() {
     setInput('');
     setIsTyping(true);
 
-    // Business data context for AI
+    // Business data context for AI - providing richer context
     const bizContext = {
-      name: business?.name,
-      // Pass minimalist metadata to avoid token bloat
-      msgCount: messages.length
+      businessName: business?.name,
+      currency: 'KES',
+      netBalance: netBalance,
+      currentTimestamp: new Date().toISOString(),
+      // Send summaries to avoid token limits but provide enough detail
+      recentSales: sales.slice(0, 10).map(s => ({ amount: s.amount, method: s.paymentMethod, date: s.timestamp?.toDate?.()?.toISOString() || s.timestamp })),
+      recentExpenses: expenses.slice(0, 10).map(e => ({ amount: e.amount, category: e.category, date: e.timestamp?.toDate?.()?.toISOString() || e.timestamp })),
+      lowStockItems: inventory.filter(i => i.quantity <= i.minStock).map(i => ({ name: i.name, stock: i.quantity })),
+      totalSalesCount: sales.length,
+      totalExpensesCount: expenses.length,
+      recentInteractionCount: messages.length
     };
 
     const response = await getAIAdvisory(userMessage, bizContext);
-    const cleanedResponse = response.replace(/\*\*/g, '').replace(/\*/g, '');
-    setMessages(prev => [...prev, { role: 'bot', content: cleanedResponse }]);
+    setMessages(prev => [...prev, { role: 'bot', content: response }]);
     setIsTyping(false);
   };
 
@@ -68,7 +76,7 @@ export default function AIAssistant() {
             initial={{ opacity: 0, y: 100, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 100, scale: 0.95 }}
-            className="fixed bottom-24 right-6 w-[400px] max-w-[calc(100vw-3rem)] h-[600px] max-h-[calc(100vh-8rem)] bg-white rounded-[2rem] shadow-2xl z-50 flex flex-col overflow-hidden border border-slate-100"
+            className="fixed bottom-24 right-6 w-[450px] max-w-[calc(100vw-3rem)] h-[650px] max-h-[calc(100vh-8rem)] bg-white rounded-[2.5rem] shadow-2xl z-50 flex flex-col overflow-hidden border border-slate-100"
           >
             {/* Header */}
             <div className="bg-emerald-600 p-6 text-white shrink-0">
@@ -78,8 +86,8 @@ export default function AIAssistant() {
                     <Sparkles className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-lg leading-none">Biashara AI</h3>
-                    <p className="text-emerald-100 text-xs mt-1">Ushauri wa Biashara</p>
+                    <h3 className="font-black text-lg leading-none tracking-tight">Biashara Assistant</h3>
+                    <p className="text-emerald-100 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">AI Business Consultant</p>
                   </div>
                 </div>
                 <button onClick={() => setIsOpen(false)} className="hover:bg-white/20 p-2 rounded-full transition-colors">
@@ -89,21 +97,28 @@ export default function AIAssistant() {
             </div>
 
             {/* Messages */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50">
               {messages.map((m, i) => (
                 <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed ${
+                  <div className={cn(
+                    "max-w-[90%] p-5 rounded-3xl text-sm leading-relaxed",
                     m.role === 'user' 
-                      ? 'bg-slate-900 text-white rounded-tr-none' 
-                      : 'bg-white border border-slate-100 shadow-sm text-slate-800 rounded-tl-none'
-                  }`}>
-                    {m.content}
+                      ? 'bg-slate-900 text-white rounded-tr-none shadow-lg' 
+                      : 'bg-white border border-slate-100 shadow-sm text-slate-800 rounded-tl-none markdown-container'
+                  )}>
+                    {m.role === 'bot' ? (
+                      <div className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-li:my-1">
+                        <ReactMarkdown>{m.content}</ReactMarkdown>
+                      </div>
+                    ) : (
+                      m.content
+                    )}
                   </div>
                 </div>
               ))}
               {isTyping && (
                 <div className="flex justify-start">
-                  <div className="bg-white border border-slate-100 p-4 rounded-2xl rounded-tl-none flex gap-1">
+                  <div className="bg-white border border-slate-100 p-4 rounded-3xl rounded-tl-none flex gap-1 shadow-sm">
                     <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce"></span>
                     <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
                     <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
@@ -114,16 +129,20 @@ export default function AIAssistant() {
 
             {/* Input */}
             <div className="p-4 bg-white border-t border-slate-100 shrink-0">
-               <div className="flex gap-2">
+               <div className="flex gap-2 items-center">
                   <input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-                    placeholder="Uliza chochote kuhusu biashara yako..."
-                    className="flex-1 h-12 bg-slate-50 border-none rounded-xl px-4 text-sm focus:ring-2 focus:ring-emerald-500 transition-all outline-none"
+                    placeholder="Uliza kuhusu mauzo, stock, au faida..."
+                    className="flex-1 h-11 bg-slate-50 border-none rounded-2xl px-4 text-xs font-bold text-slate-600 focus:ring-2 focus:ring-emerald-500/20 transition-all outline-none"
                   />
-                  <Button onClick={handleSend} disabled={!input.trim() || isTyping} className="h-12 w-12 p-0 flex items-center justify-center shrink-0">
-                    <Send className="w-5 h-5" />
+                  <Button 
+                    onClick={handleSend} 
+                    disabled={!input.trim() || isTyping} 
+                    className="h-11 w-11 p-0 flex items-center justify-center shrink-0 rounded-2xl bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-100"
+                  >
+                    <Send className="w-4 h-4 text-white" />
                   </Button>
                </div>
             </div>
@@ -132,4 +151,9 @@ export default function AIAssistant() {
       </AnimatePresence>
     </>
   );
+}
+
+// Simple helper for class names if not imported
+function cn(...classes: any[]) {
+  return classes.filter(Boolean).join(' ');
 }

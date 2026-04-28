@@ -32,17 +32,14 @@ import { Button } from '../components/ui/Button';
 import { useBusiness } from '../context/BusinessContext';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { collection, query, where, getDocs, orderBy, limit, onSnapshot } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
-import { format, startOfDay, endOfDay, subDays } from 'date-fns';
+import { format, startOfDay, subDays } from 'date-fns';
 import { cn } from '../lib/utils';
 import { getDailyInsights } from '../services/geminiService';
 
 import { Download } from 'lucide-react';
 
 export default function Dashboard() {
-  const { business } = useBusiness();
+  const { business, sales, expenses, debts, inventory } = useBusiness();
   const { user } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
@@ -62,119 +59,99 @@ export default function Dashboard() {
     activeDebts: 0,
     lowStock: 0,
     profit: 0,
-    chartData: [
-      { name: 'Mon', sales: 0 },
-      { name: 'Tue', sales: 0 },
-      { name: 'Wed', sales: 0 },
-      { name: 'Thu', sales: 0 },
-      { name: 'Fri', sales: 0 },
-      { name: 'Sat', sales: 0 },
-      { name: 'Sun', sales: 0 },
-    ]
+    chartData: [] as any[]
   });
 
   const [aiInsights, setAiInsights] = useState<string[]>([]);
   const [loadingAI, setLoadingAI] = useState(true);
 
+  // Sync stats reactively from BusinessContext data
   useEffect(() => {
     if (!business?.id) return;
 
-    const fetchStats = async () => {
-      const today = startOfDay(new Date());
-      const yesterday = startOfDay(subDays(new Date(), 1));
+    const today = startOfDay(new Date());
+    const yesterday = startOfDay(subDays(new Date(), 1));
 
-      // Real-time sales aggregation
-      const salesRef = collection(db, `businesses/${business.id}/sales`);
+    let totalToday = 0;
+    let totalYesterday = 0;
+    const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const weeklyData = weekDays.map(day => ({ name: day, sales: 0 }));
+
+    sales.forEach(s => {
+      const date = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.timestamp);
+      const dayStart = startOfDay(date);
+      const amount = s.amount || 0;
+
+      if (dayStart.getTime() === today.getTime()) {
+        totalToday += amount;
+      } else if (dayStart.getTime() === yesterday.getTime()) {
+        totalYesterday += amount;
+      }
       
-      const unsubscribeSales = onSnapshot(salesRef, (snapshot) => {
-        let totalToday = 0;
-        let totalYesterday = 0;
-        const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        const weeklyData = weekDays.map(day => ({ name: day, sales: 0 }));
+      // Calculate weekly trend - only for last 7 days actually
+      if (date >= subDays(today, 6)) {
+        const dayIndex = date.getDay();
+        weeklyData[dayIndex].sales += amount;
+      }
+    });
 
-        snapshot.docs.forEach(doc => {
-          const data = doc.data();
-          if (data.timestamp) {
-            const date = data.timestamp.toDate();
-            const dayStart = startOfDay(date);
-            const amount = data.amount || 0;
+    const totalExpensesToday = expenses.reduce((acc, e) => {
+      const date = e.timestamp?.toDate ? e.timestamp.toDate() : new Date(e.timestamp);
+      if (startOfDay(date).getTime() === today.getTime()) {
+        return acc + (e.amount || 0);
+      }
+      return acc;
+    }, 0);
 
-            if (dayStart.getTime() === today.getTime()) {
-              totalToday += amount;
-            } else if (dayStart.getTime() === yesterday.getTime()) {
-              totalYesterday += amount;
-            }
-            const dayIndex = date.getDay();
-            weeklyData[dayIndex].sales += amount;
-          }
+    const totalPendingDebts = debts
+      .filter(d => d.status === 'pending')
+      .reduce((acc, d) => acc + (d.amount || 0), 0);
+
+    const lowStockCount = inventory.filter(i => i.quantity <= i.minStock).length;
+
+    // Sort weekly data to start from 6 days ago
+    const sortedWeekly = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = subDays(today, i);
+      const name = weekDays[d.getDay()];
+      sortedWeekly.push({
+        name,
+        sales: weeklyData[d.getDay()].sales
+      });
+    }
+
+    setStats({
+      todaySales: totalToday,
+      yesterdaySales: totalYesterday,
+      activeDebts: totalPendingDebts,
+      lowStock: lowStockCount,
+      profit: totalToday - totalExpensesToday,
+      chartData: sortedWeekly
+    });
+  }, [business?.id, sales, expenses, debts, inventory]);
+
+  // AI Insights effect
+  useEffect(() => {
+    if (!business?.id || stats.todaySales === 0 && stats.activeDebts === 0) return;
+
+    const fetchInsights = async () => {
+      setLoadingAI(true);
+      try {
+        const insights = await getDailyInsights({ 
+          totalToday: stats.todaySales, 
+          totalDebts: stats.activeDebts, 
+          bizName: business.name 
         });
-
-        const sortedWeekly = [...weeklyData.slice(1), weeklyData[0]];
-
-        setStats(prev => ({
-          ...prev,
-          todaySales: totalToday,
-          yesterdaySales: totalYesterday,
-          chartData: sortedWeekly
-        }));
-      }, (error) => {
-        handleFirestoreError(error, OperationType.GET, `businesses/${business.id}/sales`);
-      });
-
-      // Track expenses to calculate real profit
-      const expensesRef = collection(db, `businesses/${business.id}/expenses`);
-      const unsubscribeExpenses = onSnapshot(expensesRef, async (snapshot) => {
-        const totalExpensesToday = snapshot.docs.reduce((acc, doc) => {
-          const data = doc.data();
-          if (data.timestamp && startOfDay(data.timestamp.toDate()).getTime() === today.getTime()) {
-            return acc + (data.amount || 0);
-          }
-          return acc;
-        }, 0);
-
-        setStats(prev => ({
-          ...prev,
-          profit: prev.todaySales - totalExpensesToday
-        }));
-
-        // Fetch AI Insights whenever data changes
-        try {
-          const insights = await getDailyInsights({ 
-            totalToday: stats.todaySales, 
-            totalDebts: stats.activeDebts, 
-            bizName: business.name 
-          });
-          setAiInsights(insights);
-        } catch (e) {
-          setAiInsights(["Record more sales to see AI growth tips."]);
-        } finally {
-          setLoadingAI(false);
-        }
-      }, (error) => {
-        handleFirestoreError(error, OperationType.GET, `businesses/${business.id}/expenses`);
-      });
-
-      // Fetch Debts separately
-      const qDebts = query(
-        collection(db, `businesses/${business.id}/debts`),
-        where('status', '==', 'pending')
-      );
-      const snapDebts = await getDocs(qDebts);
-      const totalDebts = snapDebts.docs.reduce((acc, d) => acc + d.data().amount, 0);
-
-      setStats(prev => ({
-        ...prev,
-        activeDebts: totalDebts
-      }));
-
-      return () => {
-        unsubscribeSales();
-        unsubscribeExpenses();
-      };
+        setAiInsights(insights);
+      } catch (e) {
+        setAiInsights(["Zidi kurekodi mauzo ili upate ushauri wa kukuza biashara."]);
+      } finally {
+        setLoadingAI(false);
+      }
     };
 
-    fetchStats();
-  }, [business?.id]);
+    fetchInsights();
+  }, [business?.id, stats.todaySales, stats.activeDebts]);
 
   const salesTrend = stats.todaySales > stats.yesterdaySales;
   const hasYesterdaySales = stats.yesterdaySales > 0;
@@ -373,7 +350,7 @@ function StatCard({ title, value, subtitle, icon, trend, percent, theme = 'emera
       <div className="flex flex-col h-full">
         <div className="flex items-center justify-between mb-4">
           <div className={cn("w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center", colors[theme])}>
-            {React.cloneElement(icon as React.ReactElement, { className: cn((icon as React.ReactElement).props.className, "w-5 h-5") })}
+            {icon}
           </div>
           {trend && (
             <div className={cn(
