@@ -78,7 +78,8 @@ export default function Dashboard() {
     const weeklyData = weekDays.map(day => ({ name: day, sales: 0 }));
 
     sales.forEach(s => {
-      const date = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.timestamp);
+      // If timestamp is null (optimistic update), assume it's today
+      const date = s.timestamp?.toDate ? s.timestamp.toDate() : (s.timestamp ? new Date(s.timestamp) : new Date());
       const dayStart = startOfDay(date);
       const amount = s.amount || 0;
 
@@ -295,27 +296,27 @@ export default function Dashboard() {
         </div>
 
         <div className="lg:col-span-4 space-y-6">
-           <Card className="bg-slate-900 text-white border-none rounded-[2rem] p-6 h-full relative overflow-hidden group">
+           <Card className="bg-slate-900 dark:bg-slate-900 text-white border-none rounded-[2rem] p-6 h-full relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/20 rounded-full -mr-16 -mt-16 blur-2xl transition-all group-hover:bg-emerald-500/30"></div>
               
               <div className="flex items-center gap-2 mb-6">
                 <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
                    <BrainCircuit className="w-5 h-5 text-white" />
                 </div>
-                <h4 className="font-bold text-lg text-slate-900 dark:text-slate-100 italic">AI Advisor</h4>
+                <h4 className="font-bold text-lg text-white italic">AI Advisor</h4>
               </div>
 
               <div className="space-y-3 relative z-10">
                  {loadingAI ? (
                     <div className="flex flex-col gap-3">
-                       <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded-full w-full animate-pulse"></div>
-                       <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded-full w-3/4 animate-pulse"></div>
+                       <div className="h-4 bg-white/10 rounded-full w-full animate-pulse"></div>
+                       <div className="h-4 bg-white/10 rounded-full w-3/4 animate-pulse"></div>
                     </div>
                  ) : (
                     aiInsights.map((insight, idx) => (
-                       <div key={idx} className="flex gap-3 p-3 bg-white/40 dark:bg-slate-950/40 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 hover:bg-white/60 dark:hover:bg-slate-950/60 transition-colors">
+                       <div key={idx} className="flex gap-3 p-3 bg-white/10 rounded-2xl border border-white/10 hover:bg-white/20 transition-colors">
                           <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                          <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 font-medium">{insight}</p>
+                          <p className="text-[11px] leading-relaxed text-slate-100 font-medium">{insight}</p>
                        </div>
                     ))
                  )}

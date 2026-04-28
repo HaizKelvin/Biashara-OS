@@ -26,8 +26,7 @@ import { cn } from '../lib/utils';
 import { getAIAdvisory } from '../services/geminiService';
 
 export default function InventoryPage() {
-  const { business } = useBusiness();
-  const [inventory, setInventory] = useState<any[]>([]);
+  const { business, inventory } = useBusiness();
   const [showAddModal, setShowAddModal] = useState(false);
   const [loadingAI, setLoadingAI] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string | null>(null);
@@ -38,17 +37,6 @@ export default function InventoryPage() {
   const [buyPrice, setBuyPrice] = useState('');
   const [sellPrice, setSellPrice] = useState('');
   const [lowStockThreshold, setLowStockThreshold] = useState('5');
-
-  useEffect(() => {
-    if (!business?.id) return;
-    const q = query(collection(db, `businesses/${business.id}/inventory`));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setInventory(snapshot.docs.map(doc => ({ docId: doc.id, ...doc.data() })));
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `businesses/${business.id}/inventory`);
-    });
-    return () => unsubscribe();
-  }, [business?.id]);
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();

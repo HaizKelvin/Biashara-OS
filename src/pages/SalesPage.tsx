@@ -31,8 +31,7 @@ import { format, startOfDay } from 'date-fns';
 import { Download, Trash2 } from 'lucide-react';
 
 export default function SalesPage() {
-  const { business } = useBusiness();
-  const [sales, setSales] = useState<any[]>([]);
+  const { business, sales } = useBusiness();
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -40,23 +39,6 @@ export default function SalesPage() {
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'mpesa' | 'credit'>('cash');
   const [category, setCategory] = useState('General');
-
-  useEffect(() => {
-    if (!business?.id) return;
-
-    const q = query(
-      collection(db, `businesses/${business.id}/sales`),
-      orderBy('timestamp', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `businesses/${business.id}/sales`);
-    });
-
-    return () => unsubscribe();
-  }, [business?.id]);
 
   const handleAddSale = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,7 +74,7 @@ export default function SalesPage() {
     const csvContent = [
       headers.join(","),
       ...sales.map(s => {
-        const date = s.timestamp ? format(s.timestamp.toDate(), 'yyyy-MM-dd HH:mm') : '';
+        const date = s.timestamp?.toDate ? format(s.timestamp.toDate(), 'yyyy-MM-dd HH:mm') : (s.timestamp ? format(new Date(s.timestamp), 'yyyy-MM-dd HH:mm') : '');
         return `"${date}","${s.amount}","${s.paymentMethod}","${s.category}"`;
       })
     ].join("\n");
@@ -109,8 +91,11 @@ export default function SalesPage() {
   };
 
   const todayTotal = sales
-    .filter(s => s.timestamp && startOfDay(s.timestamp.toDate()).getTime() === startOfDay(new Date()).getTime())
-    .reduce((acc, s) => acc + s.amount, 0);
+    .filter(s => {
+      const date = s.timestamp?.toDate ? s.timestamp.toDate() : (s.timestamp ? new Date(s.timestamp) : new Date());
+      return startOfDay(date).getTime() === startOfDay(new Date()).getTime();
+    })
+    .reduce((acc, s) => acc + (s.amount || 0), 0);
 
   return (
     <div className="space-y-8">
@@ -218,10 +203,10 @@ export default function SalesPage() {
                            </div>
                            <div>
                               <div className="font-bold text-slate-900 text-sm">
-                                {sale.timestamp ? format(sale.timestamp.toDate(), 'h:mm a') : '...'}
+                                {sale.timestamp?.toDate ? format(sale.timestamp.toDate(), 'h:mm a') : format(new Date(), 'h:mm a')}
                               </div>
                               <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                                {sale.timestamp ? format(sale.timestamp.toDate(), 'MMM d, yyyy') : '...'}
+                                {sale.timestamp?.toDate ? format(sale.timestamp.toDate(), 'MMM d, yyyy') : format(new Date(), 'MMM d, yyyy')}
                               </div>
                            </div>
                         </div>

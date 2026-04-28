@@ -228,7 +228,7 @@ export default function DashboardLayout() {
            <div className="flex items-center gap-2 md:gap-4">
               <button 
                 onClick={() => setIsDarkMode(!isDarkMode)}
-                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors hidden sm:block"
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
                 title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
               >
                 {isDarkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5" />}

@@ -29,31 +29,13 @@ import VoiceEntry from '../components/ai/VoiceEntry';
 import { Download, Trash2 } from 'lucide-react';
 
 export default function ExpensesPage() {
-  const { business } = useBusiness();
-  const [expenses, setExpenses] = useState<any[]>([]);
+  const { business, expenses } = useBusiness();
   const [showAddModal, setShowAddModal] = useState(false);
 
   // Form State
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('Rent');
   const [description, setDescription] = useState('');
-
-  useEffect(() => {
-    if (!business?.id) return;
-
-    const q = query(
-      collection(db, `businesses/${business.id}/expenses`),
-      orderBy('timestamp', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setExpenses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `businesses/${business.id}/expenses`);
-    });
-
-    return () => unsubscribe();
-  }, [business?.id]);
 
   const handleAddExpense = async (e?: React.FormEvent, voiceData?: any) => {
     e?.preventDefault();
@@ -111,8 +93,11 @@ export default function ExpensesPage() {
   };
 
   const todayTotal = expenses
-    .filter(e => e.timestamp && startOfDay(e.timestamp.toDate()).getTime() === startOfDay(new Date()).getTime())
-    .reduce((acc, e) => acc + e.amount, 0);
+    .filter(e => {
+      const date = e.timestamp?.toDate ? e.timestamp.toDate() : (e.timestamp ? new Date(e.timestamp) : new Date());
+      return startOfDay(date).getTime() === startOfDay(new Date()).getTime();
+    })
+    .reduce((acc, e) => acc + (e.amount || 0), 0);
 
   return (
     <div className="space-y-8">
@@ -209,7 +194,7 @@ export default function ExpensesPage() {
                            <div>
                               <div className="font-bold text-slate-900">{expense.description || 'General Expense'}</div>
                               <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic">
-                                {expense.timestamp ? format(expense.timestamp.toDate(), 'MMM d, h:mm a') : '...'}
+                                {expense.timestamp?.toDate ? format(expense.timestamp.toDate(), 'MMM d, h:mm a') : format(new Date(), 'MMM d, h:mm a')}
                               </div>
                            </div>
                         </div>

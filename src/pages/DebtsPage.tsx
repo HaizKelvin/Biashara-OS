@@ -24,8 +24,7 @@ import { format } from 'date-fns';
 import { getAIAdvisory } from '../services/geminiService';
 
 export default function DebtsPage() {
-  const { business } = useBusiness();
-  const [debts, setDebts] = useState<any[]>([]);
+  const { business, debts } = useBusiness();
   const [showAddModal, setShowAddModal] = useState(false);
   const [loadingAI, setLoadingAI] = useState<string | null>(null);
   
@@ -33,28 +32,6 @@ export default function DebtsPage() {
   const [customerName, setCustomerName] = useState('');
   const [amount, setAmount] = useState('');
   const [dueDate, setDueDate] = useState('');
-
-  useEffect(() => {
-    if (!business?.id) return;
-
-    const q = query(
-      collection(db, `businesses/${business.id}/debts`),
-      orderBy('status', 'desc'),
-      orderBy('amount', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        docId: doc.id,
-        ...doc.data()
-      }));
-      setDebts(data);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `businesses/${business.id}/debts`);
-    });
-
-    return () => unsubscribe();
-  }, [business?.id]);
 
   const handleAddDebt = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,14 +157,14 @@ export default function DebtsPage() {
                            </div>
                            <div>
                               <div className="font-bold text-slate-900">{debt.customerName}</div>
-                              <div className="text-[10px] text-slate-400 font-medium tracking-tight">Added {debt.createdAt ? format(debt.createdAt.toDate(), 'MMM d, yyyy') : '...'}</div>
+                              <div className="text-[10px] text-slate-400 font-medium tracking-tight">Added {debt.createdAt?.toDate ? format(debt.createdAt.toDate(), 'MMM d, yyyy') : format(new Date(), 'MMM d, yyyy')}</div>
                            </div>
                         </div>
                       </td>
                       <td className="px-8 py-6">
                         <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
                            <CalendarIcon className="w-3.5 h-3.5 text-slate-300" />
-                           {debt.dueDate ? format(debt.dueDate.toDate(), 'MMM d, yyyy') : 'Not set'}
+                           {debt.dueDate?.toDate ? format(debt.dueDate.toDate(), 'MMM d, yyyy') : (debt.dueDate instanceof Date ? format(debt.dueDate, 'MMM d, yyyy') : 'Not set')}
                         </div>
                       </td>
                       <td className="px-8 py-6 text-right">
