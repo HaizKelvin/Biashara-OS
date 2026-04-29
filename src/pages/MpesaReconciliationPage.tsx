@@ -172,15 +172,21 @@ export default function MpesaReconciliationPage() {
       }
 
       const collectionName = type === 'sale' ? 'sales' : 'expenses';
-      await addDoc(collection(db, `businesses/${business.id}/${collectionName}`), {
+      const transactionData: any = {
         amount: cleanAmount,
-        customerName: type === 'sale' ? item.party : undefined,
-        category: type === 'expense' ? 'M-Pesa Expense' : undefined,
         paymentMethod: 'mpesa',
         userId: userId,
         description: `M-Pesa Ref: ${item.transactionId || 'N/A'} | Party: ${item.party}`,
         timestamp: serverTimestamp(),
-      });
+      };
+
+      if (type === 'sale') {
+        transactionData.customerName = item.party;
+      } else {
+        transactionData.category = 'M-Pesa Expense';
+      }
+
+      await addDoc(collection(db, `businesses/${business.id}/${collectionName}`), transactionData);
       setSaveStatus(prev => ({ ...prev, [sid]: 'success' }));
     } catch (error) {
       setSaveStatus(prev => ({ ...prev, [sid]: 'idle' }));

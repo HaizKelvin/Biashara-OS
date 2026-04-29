@@ -6,8 +6,9 @@ let aiClient: GoogleGenAI | null = null;
 function getAI() {
   if (!aiClient) {
     const apiKey = process.env.GEMINI_API_KEY;
+    console.log("AI Init - Key defined:", !!apiKey);
     if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is not defined in the environment.");
+      throw new Error("GEMINI_API_KEY is not defined in the environment. Please check your AI Studio secrets.");
     }
     aiClient = new GoogleGenAI({ apiKey });
   }
@@ -62,21 +63,22 @@ export async function getAIAdvisory(prompt: string, businessData: any) {
     const ai = getAI();
     
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-flash-latest",
       contents: `User Question: ${prompt}\n\nCurrent Business Data Context:\n${JSON.stringify(businessData)}`,
       config: {
-        systemInstruction: {
-          parts: [{
-            text: `${SYSTEM_INSTRUCTIONS}\n- If the user speaks in Kiswahili or Sheng, reply in natural Kiswahili/Sheng used in Kenyan business contexts.\n- Maintain the 3-section output format strictly.`
-          }]
-        }
+        systemInstruction: `${SYSTEM_INSTRUCTIONS}\n- If the user speaks in Kiswahili or Sheng, reply in natural Kiswahili/Sheng used in Kenyan business contexts.\n- Maintain the 3-section output format strictly.`
       }
     });
 
+    if (!response.text) {
+      throw new Error("AI returned empty content");
+    }
+
     return response.text;
   } catch (error) {
-    console.error("AI Error:", error);
-    return "I'm having trouble analyzing the data right now. Please try again in a moment.";
+    console.error("AI Error Detailed:", error);
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    return `[BIASHARA-AI-ERROR]: ${msg}. Please refresh the page or ensure your AI Studio key is active.`;
   }
 }
 
@@ -84,7 +86,7 @@ export async function getDailyInsights(businessData: any) {
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-flash-latest",
       contents: `Analyze this business data and provide 3 short "Smart Insights":
       1. A sales prediction for tomorrow.
       2. An expense alert (if any).
@@ -99,13 +101,17 @@ export async function getDailyInsights(businessData: any) {
       }
     });
 
+    if (!response.text) {
+      throw new Error("No response text for insights");
+    }
+
     return JSON.parse(response.text);
   } catch (error) {
-    console.error("AI Insights Error:", error);
+    console.error("AI Insights Error Detailed:", error);
     return [
-      "Keep tracking your sales to unlock AI insights.",
-      "Consider stocking up on your best-selling items.",
-      "Check your pending debts for faster cashflow."
+      `[BIASHARA-AI-ERROR]: ${error instanceof Error ? error.message : "Service unavailable"}`,
+      "Stock up on popular items while we fix the AI.",
+      "Check your debts in the Debts tab."
     ];
   }
 }
@@ -114,7 +120,7 @@ export async function parseMpesaMessage(message: string) {
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-flash-latest",
       contents: `Extract detailed M-Pesa transaction data from this text block.\nMessage Block: ${message}`,
       config: {
         responseMimeType: "application/json",
@@ -134,9 +140,13 @@ export async function parseMpesaMessage(message: string) {
       }
     });
 
+    if (!response.text) {
+      throw new Error("No response text for M-Pesa parsing");
+    }
+
     return JSON.parse(response.text);
   } catch (error) {
-    console.error("M-Pesa Parsing Error:", error);
+    console.error("M-Pesa Parsing Error Detailed:", error);
     return [];
   }
 }
