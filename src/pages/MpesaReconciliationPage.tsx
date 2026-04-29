@@ -108,21 +108,23 @@ export default function MpesaReconciliationPage() {
   };
 
   const handleEditItem = (item: any) => {
-    setEditingId(item.transactionId);
+    const id = item.transactionId || item.tempId;
+    setEditingId(id);
     setEditForm({ ...item });
   };
 
   const handleSaveEdit = () => {
     if (!editForm) return;
-    setExtractedItems(prev => prev.map(item => 
-      item.transactionId === editingId ? editForm : item
-    ));
+    setExtractedItems(prev => prev.map(item => {
+      const id = item.transactionId || item.tempId;
+      return id === editingId ? editForm : item;
+    }));
     setEditingId(null);
     setEditForm(null);
   };
 
-  const handleDeleteItem = (transactionId: string) => {
-    setExtractedItems(prev => prev.filter(item => item.transactionId !== transactionId));
+  const handleDeleteItem = (id: string) => {
+    setExtractedItems(prev => prev.filter(item => (item.transactionId || item.tempId) !== id));
   };
 
   const handleDownloadCSV = () => {

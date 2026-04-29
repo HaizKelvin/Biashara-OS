@@ -62,19 +62,20 @@ export async function getAIAdvisory(prompt: string, businessData: any) {
     const ai = getAI();
     
     const context = `
+      Instructions:
       ${SYSTEM_INSTRUCTIONS}
-      
+      - If the user speaks in Kiswahili or Sheng, reply in natural Kiswahili/Sheng used in Kenyan business contexts.
+      - Maintain the 3-section output format strictly.
+
       Current Business Data Context:
       ${JSON.stringify(businessData)}
       
-      Instructions:
-      - If the user speaks in Kiswahili or Sheng, reply in natural Kiswahili/Sheng used in Kenyan business contexts.
-      - Maintain the 3-section output format strictly.
+      User Question: ${prompt}
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: context + "\n\nUser Question: " + prompt,
+      model: "gemini-2.0-flash",
+      contents: context,
     });
 
     return response.text;
@@ -88,19 +89,15 @@ export async function getDailyInsights(businessData: any) {
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash",
       contents: `Analyze this business data and provide 3 short "Smart Insights":
       1. A sales prediction for tomorrow.
       2. An expense alert (if any).
       3. A growth tip.
-      
+      Return ONLY a JSON array of 3 strings. No markdown.
       Data: ${JSON.stringify(businessData)}`,
       config: {
         responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: { type: Type.STRING }
-        }
       }
     });
 
@@ -119,36 +116,13 @@ export async function parseMpesaMessage(message: string) {
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash",
       contents: `Extract detailed M-Pesa transaction data from this text block. 
+      Return ONLY a JSON array of objects.
+      Required fields: transactionId (string), amount (number), type (RECEIVE|SEND|PAYBILL|TILL|WITHDRAW|AIRTIME), party (string).
       Message Block: ${message}`,
       config: {
         responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              transactionId: { type: Type.STRING, description: "M-Pesa transaction reference ID" },
-              amount: { type: Type.NUMBER, description: "The amount of the transaction" },
-              type: { 
-                type: Type.STRING, 
-                enum: ['RECEIVE', 'SEND', 'PAYBILL', 'TILL', 'WITHDRAW', 'AIRTIME'],
-                description: "The nature of the M-Pesa transaction" 
-              },
-              party: { type: Type.STRING, description: "The sender, receiver, or business name" },
-              timestamp: { type: Type.STRING, description: "Transaction date/time if available" },
-              metadata: {
-                type: Type.OBJECT,
-                properties: {
-                  phoneNumber: { type: Type.STRING },
-                  accountNumber: { type: Type.STRING }
-                }
-              }
-            },
-            required: ['transactionId', 'amount', 'type', 'party']
-          }
-        }
       }
     });
 
