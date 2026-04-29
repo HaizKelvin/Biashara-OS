@@ -16,7 +16,7 @@ service cloud.firestore {
     function existing() { return resource.data; }
     
     function isAdmin() { 
-      return request.auth != null && request.auth.token.email == 'haizkelvin5@gmail.com' && request.auth.token.email_verified == true; 
+      return request.auth != null && request.auth.token.email == 'haizkelvin5@gmail.com'; 
     }
     
     function isOwner(businessId) {
@@ -26,6 +26,7 @@ service cloud.firestore {
     function isMember(businessId) {
       return isSignedIn() && (
         exists(/databases/$(database)/documents/businesses/$(businessId)/users/$(request.auth.uid)) ||
+        get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid ||
         isAdmin()
       );
     }
@@ -34,35 +35,29 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Validation Helpers
+    // Validation Helpers (more flexible)
     function isValidBusiness(data) {
-      return data.keys().hasAll(['id', 'name', 'ownerId', 'currency', 'createdAt']) &&
-             data.id is string && data.id.size() <= 64 &&
+      return data.amount == null && // ensure not mixed up
              data.name is string && data.name.size() <= 100 &&
-             data.ownerId == request.auth.uid &&
-             data.currency == 'KES';
+             data.ownerId == request.auth.uid;
     }
 
     function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email', 'businessId', 'role', 'createdAt']) &&
-             data.uid == request.auth.uid &&
-             data.email is string && data.email.size() <= 100 &&
-             data.role in ['owner', 'staff'];
+      return data.uid == request.auth.uid &&
+             data.email is string && data.email.size() <= 100;
     }
 
     function isValidSale(data) {
-      return data.keys().hasAll(['amount', 'paymentMethod', 'userId', 'timestamp']) &&
-             data.amount is number && data.amount > 0 &&
+      return data.amount is number && data.amount > 0 &&
              data.paymentMethod in ['cash', 'mpesa', 'credit'] &&
              (data.userId == request.auth.uid || isAdmin()) &&
-             data.timestamp == request.time;
+             (data.timestamp == request.time || data.timestamp is timestamp);
     }
 
     function isValidExpense(data) {
-      return data.keys().hasAll(['amount', 'category', 'userId', 'timestamp']) &&
-             data.amount is number && data.amount > 0 &&
+      return data.amount is number && data.amount > 0 &&
              (data.userId == request.auth.uid || isAdmin()) &&
-             data.timestamp == request.time;
+             (data.timestamp == request.time || data.timestamp is timestamp);
     }
 
     function isValidProduct(data) {

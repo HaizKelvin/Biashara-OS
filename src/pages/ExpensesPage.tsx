@@ -294,7 +294,7 @@ export default function ExpensesPage() {
                        </select>
                     </div>
                     <div className="space-y-3">
-                       <label className="text-[100px] font-black uppercase tracking-widest text-slate-400 ml-1">Description</label>
+                       <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Description</label>
                        <Input placeholder="e.g. Electricity" className="h-14 rounded-xl bg-slate-50 border-none px-6 font-bold text-sm" value={description} onChange={e => setDescription(e.target.value)} />
                     </div>
                  </div>

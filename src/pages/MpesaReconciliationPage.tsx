@@ -152,21 +152,32 @@ export default function MpesaReconciliationPage() {
   const handleSaveAsTransaction = async (item: any, type: 'sale' | 'expense') => {
     if (!business?.id || !user?.uid) return;
     const userId = user.uid;
-    setSaveStatus(prev => ({ ...prev, [item.transactionId]: 'saving' }));
+    const tid = item.transactionId || `mpe_${Math.random().toString(36).substr(2, 9)}`;
+    
+    setSaveStatus(prev => ({ ...prev, [tid]: 'saving' }));
     try {
+      // Clean amount: remove non-numeric except dot
+      const cleanAmount = typeof item.amount === 'string' 
+        ? parseFloat(item.amount.replace(/[^0-9.]/g, ''))
+        : Number(item.amount);
+
+      if (isNaN(cleanAmount)) {
+        throw new Error('Invalid amount format');
+      }
+
       const collectionName = type === 'sale' ? 'sales' : 'expenses';
       await addDoc(collection(db, `businesses/${business.id}/${collectionName}`), {
-        amount: Number(item.amount),
+        amount: cleanAmount,
         customerName: type === 'sale' ? item.party : undefined,
         category: type === 'expense' ? 'M-Pesa Expense' : undefined,
         paymentMethod: 'mpesa',
         userId: userId,
-        description: `M-Pesa Ref: ${item.transactionId} | Party: ${item.party}`,
+        description: `M-Pesa Ref: ${tid} | Party: ${item.party}`,
         timestamp: serverTimestamp(),
       });
-      setSaveStatus(prev => ({ ...prev, [item.transactionId]: 'success' }));
+      setSaveStatus(prev => ({ ...prev, [tid]: 'success' }));
     } catch (error) {
-      setSaveStatus(prev => ({ ...prev, [item.transactionId]: 'idle' }));
+      setSaveStatus(prev => ({ ...prev, [tid]: 'idle' }));
       handleFirestoreError(error, OperationType.WRITE, `businesses/${business.id}/${type === 'sale' ? 'sales' : 'expenses'}`);
     }
   };
@@ -297,29 +308,29 @@ export default function MpesaReconciliationPage() {
                             </div>
                             
                             <div className="mt-6 flex flex-col md:flex-row gap-3">
-                              <Button 
-                                onClick={() => handleSaveAsTransaction(item, 'sale')}
-                                disabled={saveStatus[item.transactionId] === 'saving' || saveStatus[item.transactionId] === 'success'}
-                                className={cn(
-                                  "flex-1 h-12 rounded-xl text-white font-bold gap-2 uppercase text-[9px] tracking-widest italic",
-                                  saveStatus[item.transactionId] === 'success' ? "bg-emerald-100 text-emerald-600 pointer-events-none" : "bg-emerald-600 hover:bg-emerald-700"
-                                )}
-                              >
-                                {saveStatus[item.transactionId] === 'saving' && <RefreshCcw className="w-3 h-3 animate-spin" />}
-                                {saveStatus[item.transactionId] === 'success' && <CheckCircle className="w-3 h-3" />}
-                                {saveStatus[item.transactionId] === 'success' ? 'Recorded as Sale' : 'Record as Sale'}
-                              </Button>
-                              <Button 
-                                onClick={() => handleSaveAsTransaction(item, 'expense')}
-                                disabled={saveStatus[item.transactionId] === 'saving' || saveStatus[item.transactionId] === 'success'}
-                                variant="outline"
-                                className={cn(
-                                  "flex-1 h-12 rounded-xl border-slate-200 text-slate-600 font-bold gap-2 uppercase text-[9px] tracking-widest italic",
-                                   saveStatus[item.transactionId] === 'success' && "opacity-50"
-                                )}
-                              >
-                                Record as Expense
-                              </Button>
+                                <Button 
+                                  onClick={() => handleSaveAsTransaction(item, 'sale')}
+                                  disabled={saveStatus[item.transactionId || ''] === 'saving' || saveStatus[item.transactionId || ''] === 'success'}
+                                  className={cn(
+                                    "flex-1 h-12 rounded-xl text-white font-bold gap-2 uppercase text-[9px] tracking-widest italic",
+                                    saveStatus[item.transactionId || ''] === 'success' ? "bg-emerald-100 text-emerald-600 pointer-events-none" : "bg-emerald-600 hover:bg-emerald-700"
+                                  )}
+                                >
+                                  {saveStatus[item.transactionId || ''] === 'saving' && <RefreshCcw className="w-3 h-3 animate-spin" />}
+                                  {saveStatus[item.transactionId || ''] === 'success' && <CheckCircle className="w-3 h-3" />}
+                                  {saveStatus[item.transactionId || ''] === 'success' ? 'Recorded as Sale' : 'Record as Sale'}
+                                </Button>
+                                <Button 
+                                  onClick={() => handleSaveAsTransaction(item, 'expense')}
+                                  disabled={saveStatus[item.transactionId || ''] === 'saving' || saveStatus[item.transactionId || ''] === 'success'}
+                                  variant="outline"
+                                  className={cn(
+                                    "flex-1 h-12 rounded-xl border-slate-200 text-slate-600 font-bold gap-2 uppercase text-[9px] tracking-widest italic",
+                                     saveStatus[item.transactionId || ''] === 'success' && "opacity-50"
+                                  )}
+                                >
+                                  Record as Expense
+                                </Button>
                             </div>
                           </>
                         )}
@@ -410,9 +421,11 @@ export default function MpesaReconciliationPage() {
                             onClick={() => {
                               setPastedMessage(log.rawMessage);
                               setExtractedItems(log.items);
+                              setIsExtracting(false);
                               const statuses: any = {};
-                              log.items.forEach((r: any) => statuses[r.transactionId] = 'idle');
+                              log.items.forEach((r: any) => statuses[r.transactionId || r.idx || Math.random()] = 'idle');
                               setSaveStatus(statuses);
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
                             className="rounded-xl font-black text-[9px] uppercase tracking-widest text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 italic"
                          >
