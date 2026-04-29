@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   RefreshCcw, 
@@ -19,7 +19,8 @@ import {
   Trash2,
   Edit2,
   Save,
-  X as CloseIcon
+  X as CloseIcon,
+  History
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -28,9 +29,10 @@ import { cn } from '../lib/utils';
 import { parseMpesaMessage } from '../services/geminiService';
 import { useBusiness } from '../context/BusinessContext';
 import { useAuth } from '../context/AuthContext';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
+import { format } from 'date-fns';
 
 export default function MpesaReconciliationPage() {
   const { business } = useBusiness();
@@ -45,6 +47,25 @@ export default function MpesaReconciliationPage() {
   const [saveStatus, setSaveStatus] = useState<{[key: string]: 'idle' | 'saving' | 'success'}>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>(null);
+  const [reconHistory, setReconHistory] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!business?.id) return;
+    const q = query(
+      collection(db, `businesses/${business.id}/recon_history`),
+      orderBy('timestamp', 'desc'),
+      limit(5)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setReconHistory(logs);
+    }, (error) => {
+      console.error("History fetch error:", error);
+    });
+
+    return () => unsubscribe();
+  }, [business?.id]);
 
   const simulateSync = () => {
     setIsSyncing(true);
@@ -55,11 +76,22 @@ export default function MpesaReconciliationPage() {
   };
 
   const handleExtract = async () => {
-    if (!pastedMessage.trim()) return;
+    if (!pastedMessage.trim() || !business?.id) return;
     setIsExtracting(true);
     try {
       const results = await parseMpesaMessage(pastedMessage);
       setExtractedItems(results);
+      
+      // Immediate storage of the extraction attempt for history
+      if (results.length > 0) {
+        await addDoc(collection(db, `businesses/${business.id}/recon_history`), {
+          rawMessage: pastedMessage,
+          extractedCount: results.length,
+          timestamp: serverTimestamp(),
+          items: results
+        });
+      }
+
       // Reset statuses
       const statuses: any = {};
       results.forEach((r: any) => statuses[r.transactionId] = 'idle');
@@ -134,8 +166,8 @@ export default function MpesaReconciliationPage() {
       });
       setSaveStatus(prev => ({ ...prev, [item.transactionId]: 'success' }));
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `businesses/${business.id}`);
       setSaveStatus(prev => ({ ...prev, [item.transactionId]: 'idle' }));
+      handleFirestoreError(error, OperationType.WRITE, `businesses/${business.id}/${type === 'sale' ? 'sales' : 'expenses'}`);
     }
   };
 
@@ -346,6 +378,61 @@ export default function MpesaReconciliationPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <Card className="rounded-[3rem] border-slate-100 p-8 md:p-12 shadow-sm overflow-hidden relative">
+         <div className="flex flex-col md:flex-row gap-12">
+            <div className="flex-1 space-y-6">
+               <div className="flex items-center gap-3">
+                  <History className="w-5 h-5 text-slate-400" />
+                  <h3 className="text-xl font-black text-slate-900 italic uppercase">Extraction History</h3>
+               </div>
+               
+               <div className="space-y-4">
+                  {reconHistory.length === 0 ? (
+                    <div className="p-8 bg-slate-50 rounded-3xl text-center">
+                       <p className="text-xs text-slate-400 font-bold uppercase tracking-widest italic">No previous extractions found</p>
+                    </div>
+                  ) : (
+                    reconHistory.map((log) => (
+                      <div key={log.id} className="p-6 bg-slate-50 rounded-3xl border border-slate-100 flex items-center justify-between group hover:border-emerald-200 transition-all">
+                         <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-slate-400 shadow-sm">
+                               <CheckCircle className="w-5 h-5 text-emerald-500" />
+                            </div>
+                            <div>
+                               <div className="text-sm font-black text-slate-900 italic uppercase">{log.extractedCount} Transactions Extracted</div>
+                               <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic">{log.timestamp?.toDate ? format(log.timestamp.toDate(), 'MMM d, h:mm a') : 'Recent'}</div>
+                            </div>
+                         </div>
+                         <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              setPastedMessage(log.rawMessage);
+                              setExtractedItems(log.items);
+                              const statuses: any = {};
+                              log.items.forEach((r: any) => statuses[r.transactionId] = 'idle');
+                              setSaveStatus(statuses);
+                            }}
+                            className="rounded-xl font-black text-[9px] uppercase tracking-widest text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 italic"
+                         >
+                            Restore Data
+                         </Button>
+                      </div>
+                    ))
+                  )}
+               </div>
+            </div>
+
+            <div className="w-full md:w-80 p-8 bg-slate-900 rounded-[2.5rem] flex flex-col justify-center text-center text-white">
+               <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <RefreshCcw className="w-8 h-8 text-emerald-400" />
+               </div>
+               <h4 className="font-bold">Auto-Persistence</h4>
+               <p className="text-[10px] text-slate-400 mt-2 leading-relaxed italic">Biashara automatically archives your M-Pesa SMS blocks so you never lose an unrecorded transaction during session breaks.</p>
+            </div>
+         </div>
+      </Card>
 
       <Card className="rounded-[3rem] border-slate-100 p-8 md:p-12 shadow-sm overflow-hidden relative">
          <div className="flex flex-col md:flex-row gap-12">

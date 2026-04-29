@@ -9,7 +9,7 @@ service cloud.firestore {
 
     // Phase 3: Primitives
     function isSignedIn() { 
-      return request.auth != null && request.auth.token.email_verified == true; 
+      return request.auth != null; 
     }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     function incoming() { return request.resource.data; }
@@ -169,6 +169,13 @@ service cloud.firestore {
         allow update: if (isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid)) && 
                         incoming().diff(existing()).affectedKeys().hasOnly(['status']) &&
                         existing().status == 'pending';
+        allow delete: if isOwner(businessId);
+      }
+
+      match /recon_history/{logId} {
+        allow read: if isMember(businessId);
+        allow list: if isMember(businessId);
+        allow create: if isMember(businessId);
         allow delete: if isOwner(businessId);
       }
 

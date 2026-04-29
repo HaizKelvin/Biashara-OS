@@ -11,7 +11,8 @@ import {
   MessageSquare,
   Sparkles,
   AlertCircle,
-  Trash2
+  Trash2,
+  Download
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -51,6 +52,33 @@ export default function DebtsPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery]);
+
+  const handleDownloadCSV = () => {
+    if (filteredDebts.length === 0) return;
+    
+    const headers = ['Customer Name', 'Amount', 'Due Date', 'Status'];
+    const rows = filteredDebts.map(d => [
+      d.customerName,
+      d.amount,
+      d.dueDate?.toDate ? format(d.dueDate.toDate(), 'yyyy-MM-dd') : 'No Date',
+      d.status
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `debts_report_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const handleAddDebt = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,9 +149,19 @@ export default function DebtsPage() {
           <h2 className="text-3xl font-black text-slate-900 tracking-tight italic uppercase">Okoa Management</h2>
           <p className="text-sm text-slate-500 font-medium italic">Track collectibles and leverage AI for debt recovery.</p>
         </div>
-        <Button onClick={() => setShowAddModal(true)} className="rounded-2xl bg-slate-900 hover:bg-slate-800 text-white h-14 px-8 shadow-xl shadow-slate-200 flex items-center gap-3 font-black text-lg uppercase italic">
-          <Plus className="w-6 h-6" /> Add Debtor
-        </Button>
+        <div className="flex gap-3">
+          <Button 
+            onClick={handleDownloadCSV}
+            variant="outline" 
+            className="rounded-2xl border-slate-200 h-14 px-6 flex items-center gap-3 font-bold text-slate-600 italic uppercase"
+          >
+            <Download className="w-5 h-5" />
+            Export
+          </Button>
+          <Button onClick={() => setShowAddModal(true)} className="rounded-2xl bg-slate-900 hover:bg-slate-800 text-white h-14 px-8 shadow-xl shadow-slate-200 flex items-center gap-3 font-black text-lg uppercase italic">
+            <Plus className="w-6 h-6" /> Add Debtor
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

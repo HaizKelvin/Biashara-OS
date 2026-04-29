@@ -12,7 +12,8 @@ import {
   X,
   Banknote,
   Smartphone,
-  CreditCard
+  CreditCard,
+  Download
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -52,6 +53,33 @@ export default function SalesPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery]);
+
+  const handleDownloadCSV = () => {
+    if (filteredSales.length === 0) return;
+    
+    const headers = ['Date', 'Amount', 'Payment Method', 'Category'];
+    const rows = filteredSales.map(s => [
+      s.timestamp?.toDate ? format(s.timestamp.toDate(), 'yyyy-MM-dd HH:mm') : '',
+      s.amount,
+      s.paymentMethod,
+      s.category || 'General'
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `sales_report_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const handleAddSale = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,9 +123,19 @@ export default function SalesPage() {
           <h2 className="text-3xl font-black text-slate-900 tracking-tight italic uppercase">Sales Terminal</h2>
           <p className="text-sm text-slate-500 font-medium italic">Record daily transactions and monitor cash flow.</p>
         </div>
-        <Button onClick={() => setShowAddModal(true)} className="rounded-2xl bg-emerald-600 hover:bg-emerald-700 h-14 px-8 shadow-xl shadow-emerald-100 flex items-center gap-3 font-bold text-lg text-white">
-          <Plus className="w-6 h-6" /> Record Sale
-        </Button>
+        <div className="flex gap-3">
+          <Button 
+            onClick={handleDownloadCSV}
+            variant="outline" 
+            className="rounded-2xl border-slate-200 h-14 px-6 flex items-center gap-3 font-bold text-slate-600 italic uppercase"
+          >
+            <Download className="w-5 h-5" />
+            Export
+          </Button>
+          <Button onClick={() => setShowAddModal(true)} className="rounded-2xl bg-emerald-600 hover:bg-emerald-700 h-14 px-8 shadow-xl shadow-emerald-100 flex items-center gap-3 font-bold text-lg text-white">
+            <Plus className="w-6 h-6" /> Record Sale
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

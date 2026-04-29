@@ -11,7 +11,8 @@ import {
   ShoppingBag,
   Sparkles,
   Search,
-  Trash2
+  Trash2,
+  Download
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -52,6 +53,33 @@ export default function ExpensesPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery]);
+
+  const handleDownloadCSV = () => {
+    if (filteredExpenses.length === 0) return;
+    
+    const headers = ['Date', 'Description', 'Category', 'Amount'];
+    const rows = filteredExpenses.map(e => [
+      e.timestamp?.toDate ? format(e.timestamp.toDate(), 'yyyy-MM-dd HH:mm') : '',
+      e.description || 'General Expense',
+      e.category,
+      e.amount
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `expenses_report_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const handleAddExpense = async (e?: React.FormEvent, voiceData?: any) => {
     e?.preventDefault();
@@ -101,6 +129,14 @@ export default function ExpensesPage() {
           <p className="text-sm text-slate-500 font-medium italic">Record costs, manage utilities, and monitor spending leaks.</p>
         </div>
         <div className="flex items-center gap-3">
+          <Button 
+            onClick={handleDownloadCSV}
+            variant="outline" 
+            className="rounded-2xl border-slate-200 h-14 px-6 flex items-center gap-3 font-bold text-slate-600 italic uppercase"
+          >
+            <Download className="w-5 h-5" />
+            Export
+          </Button>
           <VoiceEntry type="expense" onEntry={(data) => handleAddExpense(undefined, data)} />
           <Button onClick={() => setShowAddModal(true)} className="rounded-2xl bg-emerald-600 hover:bg-emerald-700 h-14 px-8 shadow-xl shadow-emerald-100 flex items-center gap-3 font-bold text-lg text-white">
             <Plus className="w-6 h-6" /> Record Expense
