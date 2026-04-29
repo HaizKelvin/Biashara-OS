@@ -19,10 +19,11 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.email == 'haizkelvin5@gmail.com' && request.auth.token.email_verified == true; 
     }
     
+    function isOwner(businessId) {
+      return isSignedIn() && (get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid || isAdmin());
+    }
+    
     function isMember(businessId) {
-      // Avoid recursion by using exists check for subcollection or checking if user is owner via a separate path if needed
-      // However, for collection reads, we can often rely on checking request.auth.uid against fields in the documents (list rules)
-      // For general access, we check if the user is in the business subcollection or is the one who created it
       return isSignedIn() && (
         exists(/databases/$(database)/documents/businesses/$(businessId)/users/$(request.auth.uid)) ||
         isAdmin()
@@ -134,7 +135,7 @@ service cloud.firestore {
                         (userId == request.auth.uid || isAdmin()) &&
                         incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email']) &&
                         incoming().uid == existing().uid;
-        allow delete: if isAdmin();
+        allow delete: if isOwner(businessId) && userId != request.auth.uid;
       }
 
       match /sales/{saleId} {
@@ -142,7 +143,7 @@ service cloud.firestore {
         allow list: if isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid);
         allow create: if (isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid)) && isValidSale(incoming()) && isValidId(saleId);
         allow update: if false; 
-        allow delete: if isAdmin();
+        allow delete: if isOwner(businessId);
       }
 
       match /expenses/{expenseId} {
@@ -150,7 +151,7 @@ service cloud.firestore {
         allow list: if isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid);
         allow create: if (isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid)) && isValidExpense(incoming()) && isValidId(expenseId);
         allow update: if false;
-        allow delete: if isAdmin();
+        allow delete: if isOwner(businessId);
       }
 
       match /inventory/{productId} {
@@ -158,7 +159,7 @@ service cloud.firestore {
         allow list: if isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid);
         allow create: if (isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid)) && isValidProduct(incoming()) && isValidId(productId);
         allow update: if (isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid)) && isValidProduct(incoming());
-        allow delete: if isAdmin();
+        allow delete: if isOwner(businessId);
       }
 
       match /debts/{debtId} {
@@ -168,7 +169,7 @@ service cloud.firestore {
         allow update: if (isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid)) && 
                         incoming().diff(existing()).affectedKeys().hasOnly(['status']) &&
                         existing().status == 'pending';
-        allow delete: if isAdmin();
+        allow delete: if isOwner(businessId);
       }
 
       match /notifications/{notificationId} {

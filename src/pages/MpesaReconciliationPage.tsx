@@ -14,7 +14,12 @@ import {
   Smartphone as PhoneIcon,
   Copy,
   ArrowRight,
-  Plus
+  Plus,
+  Download,
+  Trash2,
+  Edit2,
+  Save,
+  X as CloseIcon
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -22,12 +27,14 @@ import { Input } from '../components/ui/Input';
 import { cn } from '../lib/utils';
 import { parseMpesaMessage } from '../services/geminiService';
 import { useBusiness } from '../context/BusinessContext';
+import { useAuth } from '../context/AuthContext';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
 
 export default function MpesaReconciliationPage() {
   const { business } = useBusiness();
+  const { user } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
   const [synced, setSynced] = useState(false);
 
@@ -36,6 +43,8 @@ export default function MpesaReconciliationPage() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractedItems, setExtractedItems] = useState<any[]>([]);
   const [saveStatus, setSaveStatus] = useState<{[key: string]: 'idle' | 'saving' | 'success'}>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<any>(null);
 
   const simulateSync = () => {
     setIsSyncing(true);
@@ -62,9 +71,55 @@ export default function MpesaReconciliationPage() {
     }
   };
 
+  const handleEditItem = (item: any) => {
+    setEditingId(item.transactionId);
+    setEditForm({ ...item });
+  };
+
+  const handleSaveEdit = () => {
+    if (!editForm) return;
+    setExtractedItems(prev => prev.map(item => 
+      item.transactionId === editingId ? editForm : item
+    ));
+    setEditingId(null);
+    setEditForm(null);
+  };
+
+  const handleDeleteItem = (transactionId: string) => {
+    setExtractedItems(prev => prev.filter(item => item.transactionId !== transactionId));
+  };
+
+  const handleDownloadCSV = () => {
+    if (extractedItems.length === 0) return;
+    
+    const headers = ['Transaction ID', 'Amount', 'Type', 'Party', 'Timestamp'];
+    const rows = extractedItems.map(item => [
+      item.transactionId,
+      item.amount,
+      item.type,
+      item.party,
+      item.timestamp || ''
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `mpesa_recon_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleSaveAsTransaction = async (item: any, type: 'sale' | 'expense') => {
-    if (!business?.id || !useAuth().user?.uid) return;
-    const userId = useAuth().user?.uid;
+    if (!business?.id || !user?.uid) return;
+    const userId = user.uid;
     setSaveStatus(prev => ({ ...prev, [item.transactionId]: 'saving' }));
     try {
       const collectionName = type === 'sale' ? 'sales' : 'expenses';
@@ -92,6 +147,16 @@ export default function MpesaReconciliationPage() {
           <p className="text-sm text-slate-500 font-medium italic">Reconcile via API or Smart AI Text Extraction.</p>
         </div>
         <div className="flex gap-3">
+          {extractedItems.length > 0 && (
+            <Button 
+               onClick={handleDownloadCSV}
+               variant="outline"
+               className="rounded-2xl border-slate-200 h-14 px-6 flex items-center gap-3 font-bold text-slate-600 italic uppercase"
+            >
+               <Download className="w-5 h-5" />
+               CSV
+            </Button>
+          )}
           <Button 
             onClick={simulateSync} 
             disabled={isSyncing}
@@ -148,41 +213,87 @@ export default function MpesaReconciliationPage() {
                 >
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic mb-4">Detected Transactions ({extractedItems.length})</p>
                   
-                  {extractedItems.map((item, idx) => (
-                    <div key={item.transactionId || idx} className="p-6 bg-slate-50 rounded-3xl border border-slate-100 group hover:border-emerald-200 transition-all">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <ExtractedField label="Amount" value={`KES ${item.amount}`} icon={<TrendingUp className="w-3 h-3" />} />
-                        <ExtractedField label="Ref ID" value={item.transactionId} icon={<Smartphone className="w-3 h-3" />} />
-                        <ExtractedField label="Party" value={item.party} icon={<PhoneIcon className="w-3 h-3" />} />
+                  {extractedItems.map((item, idx) => {
+                    const isEditing = editingId === item.transactionId;
+                    
+                    return (
+                      <div key={item.transactionId || idx} className="p-6 bg-slate-50 rounded-3xl border border-slate-100 group hover:border-emerald-200 transition-all relative">
+                        <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => handleEditItem(item)}
+                            className="p-2 bg-white rounded-lg border border-slate-100 text-slate-400 hover:text-emerald-600 transition-colors"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteItem(item.transactionId)}
+                            className="p-2 bg-white rounded-lg border border-slate-100 text-slate-400 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+
+                        {isEditing ? (
+                          <div className="space-y-4">
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <Input 
+                                  label="Amount" 
+                                  value={editForm.amount} 
+                                  onChange={(e: any) => setEditForm({ ...editForm, amount: e.target.value })} 
+                                />
+                                <Input 
+                                  label="Party" 
+                                  value={editForm.party} 
+                                  onChange={(e: any) => setEditForm({ ...editForm, party: e.target.value })} 
+                                />
+                             </div>
+                             <div className="flex gap-3">
+                                <Button onClick={handleSaveEdit} className="flex-1 bg-emerald-600 h-10 rounded-xl text-white text-[10px] uppercase font-black tracking-widest gap-2">
+                                  <Save className="w-3 h-3" /> Save Changes
+                                </Button>
+                                <Button variant="outline" onClick={() => setEditingId(null)} className="flex-1 h-10 rounded-xl text-slate-500 text-[10px] uppercase font-black tracking-widest gap-2">
+                                  <CloseIcon className="w-3 h-3" /> Cancel
+                                </Button>
+                             </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                              <ExtractedField label="Amount" value={`KES ${item.amount}`} icon={<TrendingUp className="w-3 h-3" />} />
+                              <ExtractedField label="Ref ID" value={item.transactionId} icon={<Smartphone className="w-3 h-3" />} />
+                              <ExtractedField label="Party" value={item.party} icon={<PhoneIcon className="w-3 h-3" />} />
+                            </div>
+                            
+                            <div className="mt-6 flex flex-col md:flex-row gap-3">
+                              <Button 
+                                onClick={() => handleSaveAsTransaction(item, 'sale')}
+                                disabled={saveStatus[item.transactionId] === 'saving' || saveStatus[item.transactionId] === 'success'}
+                                className={cn(
+                                  "flex-1 h-12 rounded-xl text-white font-bold gap-2 uppercase text-[9px] tracking-widest italic",
+                                  saveStatus[item.transactionId] === 'success' ? "bg-emerald-100 text-emerald-600 pointer-events-none" : "bg-emerald-600 hover:bg-emerald-700"
+                                )}
+                              >
+                                {saveStatus[item.transactionId] === 'saving' && <RefreshCcw className="w-3 h-3 animate-spin" />}
+                                {saveStatus[item.transactionId] === 'success' && <CheckCircle className="w-3 h-3" />}
+                                {saveStatus[item.transactionId] === 'success' ? 'Recorded as Sale' : 'Record as Sale'}
+                              </Button>
+                              <Button 
+                                onClick={() => handleSaveAsTransaction(item, 'expense')}
+                                disabled={saveStatus[item.transactionId] === 'saving' || saveStatus[item.transactionId] === 'success'}
+                                variant="outline"
+                                className={cn(
+                                  "flex-1 h-12 rounded-xl border-slate-200 text-slate-600 font-bold gap-2 uppercase text-[9px] tracking-widest italic",
+                                   saveStatus[item.transactionId] === 'success' && "opacity-50"
+                                )}
+                              >
+                                Record as Expense
+                              </Button>
+                            </div>
+                          </>
+                        )}
                       </div>
-                      
-                      <div className="mt-6 flex flex-col md:flex-row gap-3">
-                        <Button 
-                          onClick={() => handleSaveAsTransaction(item, 'sale')}
-                          disabled={saveStatus[item.transactionId] === 'saving' || saveStatus[item.transactionId] === 'success'}
-                          className={cn(
-                            "flex-1 h-12 rounded-xl text-white font-bold gap-2 uppercase text-[9px] tracking-widest italic",
-                            saveStatus[item.transactionId] === 'success' ? "bg-emerald-100 text-emerald-600 pointer-events-none" : "bg-emerald-600 hover:bg-emerald-700"
-                          )}
-                        >
-                          {saveStatus[item.transactionId] === 'saving' && <RefreshCcw className="w-3 h-3 animate-spin" />}
-                          {saveStatus[item.transactionId] === 'success' && <CheckCircle className="w-3 h-3" />}
-                          {saveStatus[item.transactionId] === 'success' ? 'Recorded as Sale' : 'Record as Sale'}
-                        </Button>
-                        <Button 
-                          onClick={() => handleSaveAsTransaction(item, 'expense')}
-                          disabled={saveStatus[item.transactionId] === 'saving' || saveStatus[item.transactionId] === 'success'}
-                          variant="outline"
-                          className={cn(
-                            "flex-1 h-12 rounded-xl border-slate-200 text-slate-600 font-bold gap-2 uppercase text-[9px] tracking-widest italic",
-                             saveStatus[item.transactionId] === 'success' && "opacity-50"
-                          )}
-                        >
-                          Record as Expense
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </motion.div>
               )}
             </AnimatePresence>
