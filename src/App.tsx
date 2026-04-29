@@ -17,6 +17,8 @@ import SettingsPage from './pages/SettingsPage';
 import MpesaReconciliationPage from './pages/MpesaReconciliationPage';
 import CalculatorPage from './pages/CalculatorPage';
 import AIAssistant from './components/ai/AIAssistant';
+import AdminPanel from './pages/AdminPanel';
+import MarketingQRPage from './pages/MarketingQRPage';
 
 function AuthenticatedApp({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -53,6 +55,8 @@ export default function App() {
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="calculator" element={<CalculatorPage />} />
+                <Route path="admin" element={<AdminPanel />} />
+                <Route path="marketing" element={<MarketingQRPage />} />
               </Route>
             </Routes>
           </BusinessProvider>

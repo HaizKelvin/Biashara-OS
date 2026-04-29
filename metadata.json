@@ -1,6 +1,6 @@
 {
-  "name": "Biashara",
-  "description": "A comprehensive business management system for Kenyan SMEs. Track sales, expenses, inventory, and M-Pesa reconciliations with AI-powered insights.",
+  "name": "SME Money OS Kenya",
+  "description": "Production-ready mobile-first SaaS for Kenyan SMEs (kiosks, salons, cafes). Track sales, expenses, profit, debts, and inventory with M-Pesa integration and AI insights.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["business_management", "financial_tracking", "inventory_tracking"]
+  "majorCapabilities": ["business_management", "financial_tracking", "inventory_tracking", "subscription_mgt", "mpesa_integration"]
 }

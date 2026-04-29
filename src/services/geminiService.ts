@@ -114,3 +114,37 @@ export async function getDailyInsights(businessData: any) {
     ];
   }
 }
+
+export async function parseMpesaMessage(message: string) {
+  try {
+    const ai = getAI();
+    const context = `
+      You are an expert M-Pesa transaction parser.
+      The user will provide a text block that might contain one or more M-Pesa SMS messages.
+      Extract the following details for EVERY visible transaction message:
+      1. transactionId (e.g., REQ1234567)
+      2. amount (numeric only)
+      3. type (one of: 'RECEIVE', 'SEND', 'PAYBILL', 'TILL', 'WITHDRAW', 'AIRTIME')
+      4. party (Name of sender, receiver, or business)
+      5. timestamp (ISO format if possible, or leave null)
+      6. metadata (phone number if available, account number for paybill if available)
+
+      Return ONLY a JSON array of objects. No markdown.
+      Example: [{"transactionId": "...", "amount": 100, "type": "RECEIVE", "party": "...", "timestamp": "...", "metadata": {}}, ...]
+
+      Message Block: ${message}
+    `;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: context,
+    });
+
+    const text = response.text || "[]";
+    const jsonStr = text.replace(/```json|```/g, "").trim();
+    return JSON.parse(jsonStr);
+  } catch (error) {
+    console.error("M-Pesa Parsing Error:", error);
+    return [];
+  }
+}

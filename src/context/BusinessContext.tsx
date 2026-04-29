@@ -22,6 +22,8 @@ interface BusinessContextType {
   expenses: any[];
   inventory: any[];
   debts: any[];
+  trialDaysLeft: number;
+  isSubscriptionActive: boolean;
 }
 
 const BusinessContext = createContext<BusinessContextType | undefined>(undefined);
@@ -35,6 +37,19 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [inventory, setInventory] = useState<any[]>([]);
   const [debts, setDebts] = useState<any[]>([]);
+  const [trialDaysLeft, setTrialDaysLeft] = useState(7);
+  const [isSubscriptionActive, setIsSubscriptionActive] = useState(true);
+
+  useEffect(() => {
+    if (business?.createdAt) {
+      const created = business.createdAt.toDate ? business.createdAt.toDate() : new Date(business.createdAt);
+      const diff = Date.now() - created.getTime();
+      const daysSince = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const left = Math.max(0, 7 - daysSince);
+      setTrialDaysLeft(left);
+      setIsSubscriptionActive(left > 0 || business.plan === 'pro' || business.plan === 'business');
+    }
+  }, [business]);
 
   useEffect(() => {
     if (!user) {
@@ -134,6 +149,8 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
       name,
       ownerId: user.uid,
       currency: 'KES',
+      plan: 'free',
+      status: 'active',
       createdAt: serverTimestamp(),
     };
     
@@ -170,7 +187,9 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
       sales,
       expenses,
       inventory,
-      debts
+      debts,
+      trialDaysLeft,
+      isSubscriptionActive
     }}>
       {children}
     </BusinessContext.Provider>

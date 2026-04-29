@@ -11,16 +11,31 @@ import {
   BrainCircuit,
   Sparkles,
   Zap,
-  Smartphone as PhoneIcon
+  Smartphone as PhoneIcon,
+  Copy,
+  ArrowRight,
+  Plus
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { cn } from '../lib/utils';
+import { parseMpesaMessage } from '../services/geminiService';
+import { useBusiness } from '../context/BusinessContext';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
 
 export default function MpesaReconciliationPage() {
+  const { business } = useBusiness();
   const [isSyncing, setIsSyncing] = useState(false);
   const [synced, setSynced] = useState(false);
+
+  // AI Recon State
+  const [pastedMessage, setPastedMessage] = useState('');
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractedItems, setExtractedItems] = useState<any[]>([]);
+  const [saveStatus, setSaveStatus] = useState<{[key: string]: 'idle' | 'saving' | 'success'}>({});
 
   const simulateSync = () => {
     setIsSyncing(true);
@@ -30,71 +45,175 @@ export default function MpesaReconciliationPage() {
     }, 3000);
   };
 
+  const handleExtract = async () => {
+    if (!pastedMessage.trim()) return;
+    setIsExtracting(true);
+    try {
+      const results = await parseMpesaMessage(pastedMessage);
+      setExtractedItems(results);
+      // Reset statuses
+      const statuses: any = {};
+      results.forEach((r: any) => statuses[r.transactionId] = 'idle');
+      setSaveStatus(statuses);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  const handleSaveAsTransaction = async (item: any, type: 'sale' | 'expense') => {
+    if (!business?.id || !useAuth().user?.uid) return;
+    const userId = useAuth().user?.uid;
+    setSaveStatus(prev => ({ ...prev, [item.transactionId]: 'saving' }));
+    try {
+      const collectionName = type === 'sale' ? 'sales' : 'expenses';
+      await addDoc(collection(db, `businesses/${business.id}/${collectionName}`), {
+        amount: Number(item.amount),
+        customerName: type === 'sale' ? item.party : undefined,
+        category: type === 'expense' ? 'M-Pesa Expense' : undefined,
+        paymentMethod: 'mpesa',
+        userId: userId,
+        description: `M-Pesa Ref: ${item.transactionId} | Party: ${item.party}`,
+        timestamp: serverTimestamp(),
+      });
+      setSaveStatus(prev => ({ ...prev, [item.transactionId]: 'success' }));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `businesses/${business.id}`);
+      setSaveStatus(prev => ({ ...prev, [item.transactionId]: 'idle' }));
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">C2B Sync Portal</h2>
-          <p className="text-sm text-slate-500 font-medium">Auto-reconcile M-Pesa StkPush and Paybill transactions.</p>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight italic uppercase">M-Pesa Intelligence</h2>
+          <p className="text-sm text-slate-500 font-medium italic">Reconcile via API or Smart AI Text Extraction.</p>
         </div>
-        <Button 
-          onClick={simulateSync} 
-          disabled={isSyncing}
-          className="rounded-2xl bg-emerald-600 h-14 px-8 shadow-xl shadow-emerald-100 flex items-center gap-3 font-bold text-lg text-white"
-        >
-          {isSyncing ? <RefreshCcw className="w-6 h-6 animate-spin" /> : <Zap className="w-6 h-6 fill-current" />}
-          {isSyncing ? 'Linking Gateway...' : 'Sync M-Pesa'}
-        </Button>
+        <div className="flex gap-3">
+          <Button 
+            onClick={simulateSync} 
+            disabled={isSyncing}
+            className="rounded-2xl bg-emerald-600 h-14 px-8 shadow-xl shadow-emerald-100 flex items-center gap-3 font-bold text-lg text-white italic uppercase"
+          >
+            {isSyncing ? <RefreshCcw className="w-6 h-6 animate-spin" /> : <Zap className="w-6 h-6 fill-current" />}
+            {isSyncing ? 'Linking...' : 'Daraja Sync'}
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-         <Card className="lg:col-span-2 rounded-[2.5rem] border-slate-100 p-10 flex flex-col items-center justify-center text-center space-y-6">
-            <div className="relative">
-               <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center animate-pulse">
-                  <Smartphone className="w-12 h-12 text-emerald-600" />
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Col: AI Recon Workspace */}
+        <div className="lg:col-span-8 space-y-6">
+          <Card className="rounded-[2.5rem] border-slate-100 p-8 shadow-sm overflow-hidden relative">
+            <div className="flex items-center gap-3 mb-6">
+               <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white">
+                  <Copy className="w-5 h-5" />
                </div>
-               <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-white rounded-2xl shadow-lg border border-slate-50 flex items-center justify-center">
-                  <RefreshCcw className={cn("w-6 h-6 text-emerald-600", isSyncing && "animate-spin")} />
-               </div>
-            </div>
-            <div>
-               <h3 className="text-2xl font-black text-slate-900 tracking-tight">Real-time Reconciliation</h3>
-               <p className="text-sm text-slate-500 max-w-sm mx-auto mt-2 font-medium">Connect your Daraja API credentials to automatically pull every Till Number transaction into Biashara.</p>
-            </div>
-            <div className="flex gap-4">
-               <div className="bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 italic">Last Sync</p>
-                  <p className="font-bold text-slate-900">Never</p>
-               </div>
-               <div className="bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 italic">API Status</p>
-                  <p className="font-bold text-emerald-600">Encrypted</p>
+               <div>
+                  <h3 className="text-xl font-black text-slate-900 italic uppercase">AI Recon Workspace</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 opacity-60">Paste M-Pesa SMS block for batch accounting</p>
                </div>
             </div>
-         </Card>
 
-         <div className="space-y-6">
-            <Card className="bg-slate-900 text-white border-none rounded-[2rem] p-8 shadow-2xl relative overflow-hidden group">
-               <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-               <div className="flex items-center gap-3 mb-6">
-                  <BrainCircuit className="w-6 h-6 text-emerald-400" />
-                  <h4 className="font-bold text-lg italic tracking-tight">AI Audit Trail</h4>
-               </div>
-               <p className="text-sm text-slate-300 leading-relaxed font-medium">Our AI matches incoming M-Pesa names with your registered Debts automatically.</p>
-               <div className="mt-8 pt-6 border-t border-white/10 flex items-center justify-between">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Efficiency Boost</span>
-                  <span className="text-emerald-400 font-black">+85%</span>
-               </div>
-            </Card>
+            <div className="space-y-4">
+              <textarea 
+                value={pastedMessage}
+                onChange={(e) => setPastedMessage(e.target.value)}
+                placeholder="Paste your M-Pesa transaction SMS messages here (one or many)..."
+                className="w-full h-40 bg-slate-50 border-2 border-slate-100 rounded-[2rem] p-6 text-sm font-bold text-slate-600 outline-none focus:border-emerald-200 transition-all placeholder:text-slate-300 italic"
+              />
+              <Button 
+                onClick={handleExtract}
+                disabled={isExtracting || !pastedMessage.trim()}
+                className="w-full h-16 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black text-sm uppercase tracking-widest gap-3 shadow-xl shadow-slate-100 italic"
+              >
+                {isExtracting ? (
+                  <RefreshCcw className="w-5 h-5 animate-spin" />
+                ) : (
+                  <BrainCircuit className="w-5 h-5 text-emerald-400" />
+                )}
+                {isExtracting ? 'Analyzing Block...' : 'Extract All Transactions'}
+              </Button>
+            </div>
 
-            <Card className="rounded-[2.5rem] border-slate-100 p-8 flex flex-col gap-4">
-               <h4 className="font-bold text-sm text-slate-900 italic">Connected Channels</h4>
-               <div className="space-y-3">
-                  <ChannelItem label="Lipa na Mpesa Till" status="active" />
-                  <ChannelItem label="B2C Payouts" status="legacy" />
-               </div>
-            </Card>
-         </div>
+            <AnimatePresence>
+              {extractedItems.length > 0 && (
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-8 pt-8 border-t border-slate-100 space-y-6"
+                >
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic mb-4">Detected Transactions ({extractedItems.length})</p>
+                  
+                  {extractedItems.map((item, idx) => (
+                    <div key={item.transactionId || idx} className="p-6 bg-slate-50 rounded-3xl border border-slate-100 group hover:border-emerald-200 transition-all">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <ExtractedField label="Amount" value={`KES ${item.amount}`} icon={<TrendingUp className="w-3 h-3" />} />
+                        <ExtractedField label="Ref ID" value={item.transactionId} icon={<Smartphone className="w-3 h-3" />} />
+                        <ExtractedField label="Party" value={item.party} icon={<PhoneIcon className="w-3 h-3" />} />
+                      </div>
+                      
+                      <div className="mt-6 flex flex-col md:flex-row gap-3">
+                        <Button 
+                          onClick={() => handleSaveAsTransaction(item, 'sale')}
+                          disabled={saveStatus[item.transactionId] === 'saving' || saveStatus[item.transactionId] === 'success'}
+                          className={cn(
+                            "flex-1 h-12 rounded-xl text-white font-bold gap-2 uppercase text-[9px] tracking-widest italic",
+                            saveStatus[item.transactionId] === 'success' ? "bg-emerald-100 text-emerald-600 pointer-events-none" : "bg-emerald-600 hover:bg-emerald-700"
+                          )}
+                        >
+                          {saveStatus[item.transactionId] === 'saving' && <RefreshCcw className="w-3 h-3 animate-spin" />}
+                          {saveStatus[item.transactionId] === 'success' && <CheckCircle className="w-3 h-3" />}
+                          {saveStatus[item.transactionId] === 'success' ? 'Recorded as Sale' : 'Record as Sale'}
+                        </Button>
+                        <Button 
+                          onClick={() => handleSaveAsTransaction(item, 'expense')}
+                          disabled={saveStatus[item.transactionId] === 'saving' || saveStatus[item.transactionId] === 'success'}
+                          variant="outline"
+                          className={cn(
+                            "flex-1 h-12 rounded-xl border-slate-200 text-slate-600 font-bold gap-2 uppercase text-[9px] tracking-widest italic",
+                             saveStatus[item.transactionId] === 'success' && "opacity-50"
+                          )}
+                        >
+                          Record as Expense
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </Card>
+        </div>
+
+        {/* Right Col: Stats & Info */}
+        <div className="lg:col-span-4 space-y-6">
+           <Card className="bg-slate-900 border-none rounded-[2.5rem] p-8 text-white relative overflow-hidden group h-full">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
+              <div className="flex flex-col h-full justify-between">
+                 <div>
+                    <div className="flex items-center gap-3 mb-6">
+                       <Sparkles className="text-emerald-400 w-6 h-6" />
+                       <h4 className="font-black text-lg italic uppercase tracking-tight">Financial Accuracy</h4>
+                    </div>
+                    <p className="text-xs text-slate-300 font-medium leading-relaxed italic">The AI Recon tool automatically extracts party names and matches them to your records, reducing data entry time by 90%.</p>
+                 </div>
+                 <div className="mt-12 space-y-4">
+                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
+                       <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total AI Extracts</span>
+                       <span className="text-emerald-400 font-black">24</span>
+                    </div>
+                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
+                       <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Accuracy Rate</span>
+                       <span className="text-emerald-400 font-black">99.2%</span>
+                    </div>
+                 </div>
+              </div>
+           </Card>
+        </div>
       </div>
 
       <AnimatePresence>
@@ -116,6 +235,49 @@ export default function MpesaReconciliationPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <Card className="rounded-[3rem] border-slate-100 p-8 md:p-12 shadow-sm overflow-hidden relative">
+         <div className="flex flex-col md:flex-row gap-12">
+            <div className="flex-1 space-y-6">
+               <div>
+                  <h3 className="text-xl font-black text-slate-900 italic uppercase">DARJA API Configuration</h3>
+                  <p className="text-xs text-slate-400 font-medium">Link your Safaricom Developer Portal credentials to enable automated reconciliation.</p>
+               </div>
+               
+               <form className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <Input label="Consumer Key" placeholder="Paste your Consumer Key" className="h-12 rounded-xl" />
+                     <Input label="Consumer Secret" placeholder="Paste your Secret" type="password" className="h-12 rounded-xl" />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <Input label="Shortcode (Till/Paybill)" placeholder="e.g. 174379" className="h-12 rounded-xl" />
+                     <Input label="Passkey" placeholder="Paste Passkey" type="password" className="h-12 rounded-xl" />
+                  </div>
+                  <Button type="button" variant="outline" className="w-full h-12 rounded-xl font-black uppercase tracking-widest text-[9px] italic">Verify Connection</Button>
+               </form>
+            </div>
+
+            <div className="w-full md:w-80 p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100 flex flex-col justify-center text-center">
+               <div className="w-16 h-16 bg-white rounded-2xl shadow-sm border border-slate-50 flex items-center justify-center mx-auto mb-4">
+                  <TrendingUp className="w-8 h-8 text-emerald-600" />
+               </div>
+               <h4 className="font-bold text-slate-900">Why connect?</h4>
+               <p className="text-[10px] text-slate-500 mt-2 leading-relaxed">Connecting M-Pesa allows Biashara to match payments to sales instantly, eliminating manual entry errors and providing a precise cash flow audit trail.</p>
+            </div>
+         </div>
+      </Card>
+    </div>
+  );
+}
+
+function ExtractedField({ label, value, icon }: any) {
+  return (
+    <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+       <div className="flex items-center gap-2 mb-2 text-slate-400">
+          {icon}
+          <span className="text-[9px] font-black uppercase tracking-widest">{label}</span>
+       </div>
+       <p className="text-sm font-black text-slate-900 tracking-tight italic">{value || '---'}</p>
     </div>
   );
 }

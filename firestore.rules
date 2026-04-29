@@ -8,20 +8,24 @@ service cloud.firestore {
     }
 
     // Phase 3: Primitives
-    function isSignedIn() { return request.auth != null; }
+    function isSignedIn() { 
+      return request.auth != null && request.auth.token.email_verified == true; 
+    }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
     
-    function isOwner(businessId) {
-      return isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid;
+    function isAdmin() { 
+      return request.auth != null && request.auth.token.email == 'haizkelvin5@gmail.com' && request.auth.token.email_verified == true; 
     }
     
     function isMember(businessId) {
-      // User is a member if they are in the users subcollection OR they are the owner of the business
+      // Avoid recursion by using exists check for subcollection or checking if user is owner via a separate path if needed
+      // However, for collection reads, we can often rely on checking request.auth.uid against fields in the documents (list rules)
+      // For general access, we check if the user is in the business subcollection or is the one who created it
       return isSignedIn() && (
         exists(/databases/$(database)/documents/businesses/$(businessId)/users/$(request.auth.uid)) ||
-        get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid
+        isAdmin()
       );
     }
     
@@ -32,56 +36,49 @@ service cloud.firestore {
     // Validation Helpers
     function isValidBusiness(data) {
       return data.keys().hasAll(['id', 'name', 'ownerId', 'currency', 'createdAt']) &&
-             data.keys().size() == 5 &&
              data.id is string && data.id.size() <= 64 &&
              data.name is string && data.name.size() <= 100 &&
              data.ownerId == request.auth.uid &&
-             data.currency == 'KES' &&
-             data.createdAt == request.time;
+             data.currency == 'KES';
     }
 
     function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email', 'displayName', 'businessId', 'role', 'createdAt']) &&
-             data.keys().size() == 6 &&
+      return data.keys().hasAll(['uid', 'email', 'businessId', 'role', 'createdAt']) &&
              data.uid == request.auth.uid &&
              data.email is string && data.email.size() <= 100 &&
-             data.role in ['owner', 'staff'] &&
-             data.createdAt == request.time;
+             data.role in ['owner', 'staff'];
     }
 
     function isValidSale(data) {
-      return data.keys().hasAll(['id', 'amount', 'paymentMethod', 'userId', 'timestamp']) &&
-             data.id is string && data.id.size() <= 64 &&
+      return data.keys().hasAll(['amount', 'paymentMethod', 'userId', 'timestamp']) &&
              data.amount is number && data.amount > 0 &&
-             data.paymentMethod in ['Cash', 'M-Pesa', 'Bank'] &&
-             data.userId == request.auth.uid &&
+             data.paymentMethod in ['cash', 'mpesa', 'credit'] &&
+             (data.userId == request.auth.uid || isAdmin()) &&
              data.timestamp == request.time;
     }
 
     function isValidExpense(data) {
-      return data.keys().hasAll(['id', 'amount', 'category', 'userId', 'timestamp']) &&
-             data.id is string && data.id.size() <= 64 &&
+      return data.keys().hasAll(['amount', 'category', 'userId', 'timestamp']) &&
              data.amount is number && data.amount > 0 &&
-             data.category in ['Rent', 'Stock', 'Transport', 'Airtime', 'Salary', 'Other'] &&
-             data.userId == request.auth.uid &&
+             (data.userId == request.auth.uid || isAdmin()) &&
              data.timestamp == request.time;
     }
 
     function isValidProduct(data) {
-      return data.keys().hasAll(['id', 'name', 'quantity', 'costPrice', 'sellingPrice']) &&
-             data.id is string && data.id.size() <= 64 &&
+      return data.keys().hasAll(['name', 'quantity', 'sellPrice', 'userId', 'createdAt']) &&
              data.name is string && data.name.size() <= 100 &&
              data.quantity is number &&
-             data.costPrice is number && data.costPrice >= 0 &&
-             data.sellingPrice is number && data.sellingPrice >= 0;
+             data.sellPrice is number && data.sellPrice >= 0 &&
+             (data.userId == request.auth.uid || isAdmin()) &&
+             data.createdAt == request.time;
     }
 
     function isValidDebt(data) {
-      return data.keys().hasAll(['id', 'customerName', 'amount', 'status']) &&
-             data.id is string && data.id.size() <= 64 &&
+      return data.keys().hasAll(['customerName', 'amount', 'status', 'userId', 'createdAt']) &&
              data.customerName is string && data.customerName.size() <= 100 &&
              data.amount is number && data.amount > 0 &&
-             data.status in ['pending', 'paid'];
+             data.status in ['pending', 'paid'] &&
+             (data.userId == request.auth.uid || isAdmin());
     }
 
     function isValidNotification(data) {
@@ -92,64 +89,86 @@ service cloud.firestore {
              data.timestamp == request.time;
     }
 
-    match /users/{userId} {
-      allow read: if isSignedIn() && userId == request.auth.uid;
-      allow write: if isSignedIn() && userId == request.auth.uid;
+    function isValidChatMessage(data) {
+      return data.keys().hasAll(['text', 'sender', 'userId', 'createdAt']) &&
+             data.text is string && data.text.size() <= 2000 &&
+             data.sender in ['user', 'ai'] &&
+             data.userId == request.auth.uid &&
+             data.createdAt == request.time;
     }
 
+    match /businesses/{businessId}/chat_messages/{messageId} {
+      allow read: if isMember(businessId);
+      allow create: if isMember(businessId) && isValidChatMessage(incoming());
+      allow delete: if isMember(businessId);
+    }
+
+    // users collection hardening
+    match /users/{userId} {
+      allow read: if isSignedIn() && (userId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && userId == request.auth.uid && 
+                   incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'phoneNumber']);
+      allow create: if isSignedIn() && userId == request.auth.uid;
+    }
+
+    // Global admin access
+    match /businesses/{businessId} {
+      allow read, write: if isAdmin();
+    }
+    
     // Collections
     match /businesses/{businessId} {
       // Basic business check
-      allow get: if isSignedIn() && (existing().ownerId == request.auth.uid || isMember(businessId));
+      allow get: if isSignedIn() && (existing().ownerId == request.auth.uid || exists(/databases/$(database)/documents/businesses/$(businessId)/users/$(request.auth.uid)) || isAdmin());
       allow create: if isSignedIn() && isValidBusiness(incoming()) && isValidId(businessId);
-      allow update: if isSignedIn() && isOwner(businessId) && 
+      allow update: if isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin()) && 
                       incoming().ownerId == existing().ownerId &&
                       incoming().id == existing().id &&
                       incoming().createdAt == existing().createdAt &&
                       incoming().diff(existing()).affectedKeys().hasOnly(['name', 'currency']);
 
       match /users/{userId} {
-        allow read: if isMember(businessId);
-        allow create: if isSignedIn() && isValidUser(incoming()) && (isOwner(businessId) || userId == request.auth.uid);
-        allow update: if isMember(businessId) && (isOwner(businessId) || isSelf(businessId, userId)) &&
+        allow read: if isMember(businessId) || (isSignedIn() && existing().ownerId == request.auth.uid);
+        allow create: if isSignedIn() && isValidUser(incoming()) && (userId == request.auth.uid || isAdmin());
+        allow update: if (isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid)) && 
+                        (userId == request.auth.uid || isAdmin()) &&
                         incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email']) &&
                         incoming().uid == existing().uid;
-        allow delete: if isOwner(businessId) && userId != request.auth.uid;
+        allow delete: if isAdmin();
       }
 
       match /sales/{saleId} {
-        allow read: if isMember(businessId);
-        allow list: if isMember(businessId);
-        allow create: if isMember(businessId) && isValidSale(incoming()) && isValidId(saleId);
+        allow read: if isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid);
+        allow list: if isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid);
+        allow create: if (isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid)) && isValidSale(incoming()) && isValidId(saleId);
         allow update: if false; 
-        allow delete: if isOwner(businessId);
+        allow delete: if isAdmin();
       }
 
       match /expenses/{expenseId} {
-        allow read: if isMember(businessId);
-        allow list: if isMember(businessId);
-        allow create: if isMember(businessId) && isValidExpense(incoming()) && isValidId(expenseId);
+        allow read: if isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid);
+        allow list: if isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid);
+        allow create: if (isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid)) && isValidExpense(incoming()) && isValidId(expenseId);
         allow update: if false;
-        allow delete: if isOwner(businessId);
+        allow delete: if isAdmin();
       }
 
       match /inventory/{productId} {
-        allow read: if isMember(businessId);
-        allow list: if isMember(businessId);
-        allow create: if isMember(businessId) && isValidProduct(incoming()) && isValidId(productId);
-        allow update: if isMember(businessId) && isValidProduct(incoming()) &&
-                        incoming().id == existing().id;
-        allow delete: if isOwner(businessId);
+        allow read: if isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid);
+        allow list: if isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid);
+        allow create: if (isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid)) && isValidProduct(incoming()) && isValidId(productId);
+        allow update: if (isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid)) && isValidProduct(incoming());
+        allow delete: if isAdmin();
       }
 
       match /debts/{debtId} {
-        allow read: if isMember(businessId);
-        allow list: if isMember(businessId);
-        allow create: if isMember(businessId) && isValidDebt(incoming()) && isValidId(debtId);
-        allow update: if isMember(businessId) && 
+        allow read: if isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid);
+        allow list: if isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid);
+        allow create: if (isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid)) && isValidDebt(incoming()) && isValidId(debtId);
+        allow update: if (isMember(businessId) || (isSignedIn() && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid)) && 
                         incoming().diff(existing()).affectedKeys().hasOnly(['status']) &&
                         existing().status == 'pending';
-        allow delete: if isOwner(businessId);
+        allow delete: if isAdmin();
       }
 
       match /notifications/{notificationId} {

@@ -21,7 +21,10 @@ import {
   FileText,
   Sun,
   Moon,
-  Calculator
+  Calculator,
+  QrCode,
+  ShieldCheck,
+  AlertCircle,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -36,7 +39,7 @@ import FloatingCalculator from '../FloatingCalculator';
 
 export default function DashboardLayout() {
   const { signOutUser, user } = useAuth();
-  const { business, loading, createBusiness, netBalance } = useBusiness();
+  const { business, loading, createBusiness, netBalance, isSubscriptionActive } = useBusiness();
   const { language, setLanguage, t } = useLanguage();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -82,8 +85,10 @@ export default function DashboardLayout() {
     { name: t('inventory'), href: '/app/inventory', icon: Package },
     { name: t('debts'), href: '/app/debts', icon: Users },
     { name: t('mpesa_recon'), href: '/app/mpesa', icon: RefreshCcw },
+    { name: 'QR Marketing', href: '/app/marketing', icon: QrCode },
     { name: t('reports'), href: '/app/reports', icon: BarChart3 },
     { name: t('settings'), href: '/app/settings', icon: Settings },
+    ...(user?.email === 'haizkelvin5@gmail.com' ? [{ name: 'Admin Control', href: '/app/admin', icon: ShieldCheck }] : []),
   ];
 
   if (loading) return (
@@ -120,6 +125,33 @@ export default function DashboardLayout() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex overflow-hidden transition-colors duration-300">
+      {/* Subscription/Trial Overlay */}
+      <AnimatePresence>
+        {!isSubscriptionActive && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} 
+              animate={{ scale: 1, y: 0 }} 
+              className="max-w-md w-full bg-white dark:bg-slate-900 p-10 rounded-[3rem] shadow-2xl text-center border border-slate-100 dark:border-slate-800"
+            >
+              <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8">
+                <AlertCircle className="text-red-600 dark:text-red-400 w-10 h-10" />
+              </div>
+              <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 mb-2 tracking-tight uppercase italic">Trial Expired</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 leading-relaxed font-medium">Your 7-day free trial has concluded. Upgrade to a premium plan to continue tracking your SME financials with AI.</p>
+              <div className="space-y-3">
+                <Button onClick={() => window.location.href = '/app/settings'} className="w-full h-14 rounded-2xl text-lg font-bold shadow-lg shadow-emerald-200">Upgrade Now</Button>
+                <button onClick={() => signOutUser().then(() => window.location.href = '/')} className="text-xs text-slate-400 hover:text-slate-600 font-bold uppercase tracking-widest py-2">Logout</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Sidebar Component */}
       <aside className={cn(
         "fixed inset-y-0 left-0 z-50 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-800/50 transform transition-all duration-300 ease-in-out lg:relative lg:translate-x-0 flex flex-col shadow-2xl lg:shadow-none",

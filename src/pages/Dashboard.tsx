@@ -13,7 +13,8 @@ import {
   ChevronRight,
   BrainCircuit,
   ShieldCheck,
-  Wallet
+  Wallet,
+  Clock
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -39,7 +40,7 @@ import { getDailyInsights } from '../services/geminiService';
 import { Download } from 'lucide-react';
 
 export default function Dashboard() {
-  const { business, sales, expenses, debts, inventory } = useBusiness();
+  const { business, sales, expenses, debts, inventory, isSubscriptionActive, trialDaysLeft, netBalance } = useBusiness();
   const { user } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
@@ -56,14 +57,18 @@ export default function Dashboard() {
   const [stats, setStats] = useState({
     todaySales: 0,
     yesterdaySales: 0,
+    weeklySales: 0,
+    monthlySales: 0,
     activeDebts: 0,
     lowStock: 0,
     profit: 0,
+    weeklyProfit: 0,
     chartData: [] as any[]
   });
 
   const [aiInsights, setAiInsights] = useState<string[]>([]);
   const [loadingAI, setLoadingAI] = useState(true);
+  const [timeRange, setTimeRange] = useState<'day' | 'week' | 'month'>('day');
 
   // Sync stats reactively from BusinessContext data
   useEffect(() => {
@@ -71,35 +76,41 @@ export default function Dashboard() {
 
     const today = startOfDay(new Date());
     const yesterday = startOfDay(subDays(new Date(), 1));
+    const sevenDaysAgo = startOfDay(subDays(new Date(), 7));
+    const thirtyDaysAgo = startOfDay(subDays(new Date(), 30));
 
     let totalToday = 0;
     let totalYesterday = 0;
+    let totalWeekly = 0;
+    let totalMonthly = 0;
+    
     const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const weeklyData = weekDays.map(day => ({ name: day, sales: 0 }));
+    const weeklyData = weekDays.map(day => ({ name: day, sales: 0, profit: 0 }));
 
     sales.forEach(s => {
-      // If timestamp is null (optimistic update), assume it's today
       const date = s.timestamp?.toDate ? s.timestamp.toDate() : (s.timestamp ? new Date(s.timestamp) : new Date());
       const dayStart = startOfDay(date);
       const amount = s.amount || 0;
 
-      if (dayStart.getTime() === today.getTime()) {
-        totalToday += amount;
-      } else if (dayStart.getTime() === yesterday.getTime()) {
-        totalYesterday += amount;
-      }
+      if (dayStart.getTime() === today.getTime()) totalToday += amount;
+      if (dayStart.getTime() === yesterday.getTime()) totalYesterday += amount;
+      if (date >= sevenDaysAgo) totalWeekly += amount;
+      if (date >= thirtyDaysAgo) totalMonthly += amount;
       
-      // Calculate weekly trend - only for last 7 days actually
       if (date >= subDays(today, 6)) {
         const dayIndex = date.getDay();
         weeklyData[dayIndex].sales += amount;
       }
     });
 
+    let totalExpWeekly = 0;
     const totalExpensesToday = expenses.reduce((acc, e) => {
-      const date = e.timestamp?.toDate ? e.timestamp.toDate() : new Date(e.timestamp);
+      const date = e.timestamp?.toDate ? e.timestamp.toDate() : (e.timestamp ? new Date(e.timestamp) : new Date());
+      const amount = e.amount || 0;
+      if (date >= sevenDaysAgo) totalExpWeekly += amount;
+      
       if (startOfDay(date).getTime() === today.getTime()) {
-        return acc + (e.amount || 0);
+        return acc + amount;
       }
       return acc;
     }, 0);
@@ -108,9 +119,9 @@ export default function Dashboard() {
       .filter(d => d.status === 'pending')
       .reduce((acc, d) => acc + (d.amount || 0), 0);
 
-    const lowStockCount = inventory.filter(i => i.quantity <= i.minStock).length;
+    // Fix low stock logic
+    const lowStockCount = inventory.filter(i => i.quantity <= (i.minStock || 5)).length;
 
-    // Sort weekly data to start from 6 days ago
     const sortedWeekly = [];
     for (let i = 6; i >= 0; i--) {
       const d = subDays(today, i);
@@ -124,16 +135,19 @@ export default function Dashboard() {
     setStats({
       todaySales: totalToday,
       yesterdaySales: totalYesterday,
+      weeklySales: totalWeekly,
+      monthlySales: totalMonthly,
       activeDebts: totalPendingDebts,
       lowStock: lowStockCount,
       profit: totalToday - totalExpensesToday,
+      weeklyProfit: totalWeekly - totalExpWeekly,
       chartData: sortedWeekly
     });
   }, [business?.id, sales, expenses, debts, inventory]);
 
   // AI Insights effect
   useEffect(() => {
-    if (!business?.id || stats.todaySales === 0 && stats.activeDebts === 0) return;
+    if (!business?.id || (stats.todaySales === 0 && stats.activeDebts === 0)) return;
 
     const fetchInsights = async () => {
       setLoadingAI(true);
@@ -154,6 +168,9 @@ export default function Dashboard() {
     fetchInsights();
   }, [business?.id, stats.todaySales, stats.activeDebts]);
 
+  const currentSales = timeRange === 'day' ? stats.todaySales : timeRange === 'week' ? stats.weeklySales : stats.monthlySales;
+  const currentProfit = timeRange === 'day' ? stats.profit : timeRange === 'week' ? stats.weeklyProfit : (stats.monthlySales * 0.4); 
+  
   const salesTrend = stats.todaySales > stats.yesterdaySales;
   const hasYesterdaySales = stats.yesterdaySales > 0;
   const diff = hasYesterdaySales 
@@ -189,19 +206,21 @@ export default function Dashboard() {
     <div className="space-y-4 md:space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-[0.2em] mb-1 block">{t('welcome')}, {user?.displayName?.split(' ')[0]}</span>
-          <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Business Overview</h2>
+          <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-[0.2em] mb-1 block italic">{t('welcome')}, {user?.displayName?.split(' ')[0]}</span>
+          <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight uppercase italic text-shadow-sm">Dashboard Hub</h2>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button 
-            variant="outline" 
-            className="rounded-2xl border-slate-200 dark:border-slate-800 dark:text-slate-100 h-11 px-6 flex-1 md:flex-initial flex items-center justify-center gap-2"
-            onClick={handleExportDashboard}
+          <select 
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value as any)}
+            className="rounded-2xl border-slate-200 dark:border-slate-800 dark:text-slate-100 h-11 px-4 text-xs font-black uppercase tracking-widest bg-white dark:bg-slate-900 outline-none shadow-sm"
           >
-            <Download className="w-4 h-4" /> Export Stats
-          </Button>
+            <option value="day">Daily Tracking</option>
+            <option value="week">Weekly Summary</option>
+            <option value="month">Monthly Overview</option>
+          </select>
           <Button 
-            className="rounded-2xl bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-100 h-11 px-6 flex-1 md:flex-initial text-white font-bold flex items-center justify-center"
+            className="rounded-2xl bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-100 h-11 px-6 flex-1 md:flex-initial text-white font-bold flex items-center justify-center uppercase italic"
             onClick={() => navigate('/app/sales')}
           >
             + {t('add_sale')}
@@ -211,33 +230,33 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <StatCard 
-          title="Today's Sales" 
-          value={`KES ${stats.todaySales.toLocaleString()}`} 
-          trend={hasYesterdaySales ? (salesTrend ? 'up' : 'down') : null}
-          percent={`${diff.toFixed(1)}%`}
-          subtitle={hasYesterdaySales ? "vs yesterday" : "Welcome aboard"}
+          title={`${timeRange === 'day' ? "Today's" : timeRange === 'week' ? "Weekly" : "Monthly"} Sales`}
+          value={`KES ${currentSales.toLocaleString()}`} 
+          trend={timeRange === 'day' && hasYesterdaySales ? (salesTrend ? 'up' : 'down') : null}
+          percent={timeRange === 'day' ? `${diff.toFixed(1)}%` : null}
+          subtitle={timeRange === 'day' ? (hasYesterdaySales ? "vs yesterday" : "Welcome aboard") : "Period summary"}
           icon={<TrendingUp className="text-emerald-600 w-5 h-5" />}
         />
         <StatCard 
-          title="Daily Profit" 
-          value={`KES ${stats.profit.toLocaleString()}`} 
-          subtitle="est. for today"
+          title="Net Profit" 
+          value={`KES ${currentProfit.toLocaleString()}`} 
+          subtitle="Revenue minus costs"
           icon={<DollarSign className="text-blue-600 w-5 h-5" />}
           theme="blue"
         />
         <StatCard 
-          title="Pending Debts" 
+          title="Active Debts" 
           value={`KES ${stats.activeDebts.toLocaleString()}`} 
-          subtitle="money to collect"
+          subtitle="Total collectibles"
           icon={<Users className="text-orange-600 w-5 h-5" />}
           theme="orange"
         />
         <StatCard 
-          title="Cash Health" 
-          value="Strong" 
-          subtitle="Reconciled"
-          icon={<ShieldCheck className="text-purple-600 w-5 h-5" />}
-          theme="purple"
+          title="Low Stock"
+          value={`${stats.lowStock} Items`}
+          subtitle="Stock replenishment"
+          icon={<Package className={cn("w-5 h-5", stats.lowStock > 0 ? "text-red-600" : "text-emerald-600")} />}
+          theme={stats.lowStock > 0 ? "orange" : "emerald"}
         />
       </div>
 
@@ -246,13 +265,9 @@ export default function Dashboard() {
           <Card className="h-full border-slate-100 shadow-sm rounded-[2rem] overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between pb-8">
                <div>
-                  <CardTitle className="text-lg font-bold">Sales & Profit Trend</CardTitle>
-                  <p className="text-xs text-slate-400 font-medium">Last 7 recorded days</p>
+                  <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-400">Sales Trend</CardTitle>
+                  <p className="text-xs text-slate-500 font-bold italic">Visual performance metrics</p>
                </div>
-               <select className="text-xs font-bold bg-slate-50 border-none rounded-xl px-4 py-2 outline-none cursor-pointer text-slate-600">
-                 <option>Past Week</option>
-                 <option>Past Month</option>
-               </select>
             </CardHeader>
             <CardContent>
               <div className="h-[300px] w-full">
@@ -279,7 +294,6 @@ export default function Dashboard() {
                     <Tooltip 
                       contentStyle={{ 
                         backgroundColor: isDark ? '#0f172a' : '#fff', 
-                        borderColor: isDark ? '#1e293b' : '#f1f5f9',
                         borderRadius: '24px', 
                         border: 'none', 
                         boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
@@ -299,11 +313,14 @@ export default function Dashboard() {
            <Card className="bg-slate-900 dark:bg-slate-900 text-white border-none rounded-[2rem] p-6 h-full relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/20 rounded-full -mr-16 -mt-16 blur-2xl transition-all group-hover:bg-emerald-500/30"></div>
               
-              <div className="flex items-center gap-2 mb-6">
-                <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
-                   <BrainCircuit className="w-5 h-5 text-white" />
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/50">
+                   <BrainCircuit className="w-6 h-6 text-white" />
                 </div>
-                <h4 className="font-bold text-lg text-white italic">AI Advisor</h4>
+                <div>
+                  <h4 className="font-black text-lg text-white italic uppercase tracking-tighter">AI Advisor</h4>
+                  <p className="text-[9px] text-emerald-400 font-bold uppercase tracking-widest">Real-time analysis</p>
+                </div>
               </div>
 
               <div className="space-y-3 relative z-10">
@@ -314,9 +331,9 @@ export default function Dashboard() {
                     </div>
                  ) : (
                     aiInsights.map((insight, idx) => (
-                       <div key={idx} className="flex gap-3 p-3 bg-white/10 rounded-2xl border border-white/10 hover:bg-white/20 transition-colors">
-                          <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                          <p className="text-[11px] leading-relaxed text-slate-100 font-medium">{insight}</p>
+                       <div key={idx} className="flex gap-4 p-4 bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 transition-all active:scale-[0.98]">
+                          <Sparkles className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                          <p className="text-[11px] leading-relaxed text-slate-100 font-bold italic">{insight}</p>
                        </div>
                     ))
                  )}
@@ -325,9 +342,9 @@ export default function Dashboard() {
               <div className="mt-6 pt-6 border-t border-white/5">
                 <button 
                   onClick={() => navigate('/app/reports')}
-                  className="flex items-center justify-between w-full p-4 bg-emerald-600 rounded-xl font-bold text-xs tracking-tight hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-900/40"
+                  className="flex items-center justify-between w-full h-14 px-6 bg-emerald-600 rounded-xl font-black text-[10px] uppercase tracking-[0.1em] hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-900/40 italic"
                 >
-                  Full Strategic Plan
+                  Strategic Action Plan
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
@@ -347,7 +364,7 @@ function StatCard({ title, value, subtitle, icon, trend, percent, theme = 'emera
   };
 
   return (
-    <Card className="border-slate-200/50 dark:border-slate-800/50 shadow-sm rounded-[2.5rem] p-5 md:p-6 group transition-all md:hover:scale-[1.02]">
+    <Card className="border-slate-200/50 dark:border-slate-800/50 shadow-sm rounded-[2.5rem] p-5 md:p-6 group transition-all md:hover:scale-[1.02] bg-white dark:bg-slate-900">
       <div className="flex flex-col h-full">
         <div className="flex items-center justify-between mb-4">
           <div className={cn("w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center", colors[theme])}>
@@ -364,13 +381,13 @@ function StatCard({ title, value, subtitle, icon, trend, percent, theme = 'emera
           )}
         </div>
         <div>
-          <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight mb-1">{value}</h3>
-          <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">{title}</p>
-          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium italic">{subtitle}</p>
+          <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tighter mb-1 italic">
+            {value}
+          </h3>
+          <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 italic">{title}</p>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold italic opacity-60 tracking-tight">{subtitle}</p>
         </div>
       </div>
     </Card>
   );
 }
-
-// Weekly aggregation helper removed, using real state now.
