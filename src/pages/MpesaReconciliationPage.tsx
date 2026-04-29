@@ -80,21 +80,25 @@ export default function MpesaReconciliationPage() {
     setIsExtracting(true);
     try {
       const results = await parseMpesaMessage(pastedMessage);
-      setExtractedItems(results);
+      const mappedResults = results.map((r: any, idx: number) => ({
+        ...r,
+        tempId: r.transactionId || `mpe_temp_${idx}_${Date.now()}`
+      }));
+      setExtractedItems(mappedResults);
       
       // Immediate storage of the extraction attempt for history
-      if (results.length > 0) {
+      if (mappedResults.length > 0) {
         await addDoc(collection(db, `businesses/${business.id}/recon_history`), {
           rawMessage: pastedMessage,
-          extractedCount: results.length,
+          extractedCount: mappedResults.length,
           timestamp: serverTimestamp(),
-          items: results
+          items: mappedResults
         });
       }
 
       // Reset statuses
       const statuses: any = {};
-      results.forEach((r: any) => statuses[r.transactionId] = 'idle');
+      mappedResults.forEach((r: any) => statuses[r.tempId] = 'idle');
       setSaveStatus(statuses);
     } catch (e) {
       console.error(e);
@@ -152,9 +156,9 @@ export default function MpesaReconciliationPage() {
   const handleSaveAsTransaction = async (item: any, type: 'sale' | 'expense') => {
     if (!business?.id || !user?.uid) return;
     const userId = user.uid;
-    const tid = item.transactionId || `mpe_${Math.random().toString(36).substr(2, 9)}`;
+    const sid = item.tempId || item.transactionId;
     
-    setSaveStatus(prev => ({ ...prev, [tid]: 'saving' }));
+    setSaveStatus(prev => ({ ...prev, [sid]: 'saving' }));
     try {
       // Clean amount: remove non-numeric except dot
       const cleanAmount = typeof item.amount === 'string' 
@@ -172,12 +176,12 @@ export default function MpesaReconciliationPage() {
         category: type === 'expense' ? 'M-Pesa Expense' : undefined,
         paymentMethod: 'mpesa',
         userId: userId,
-        description: `M-Pesa Ref: ${tid} | Party: ${item.party}`,
+        description: `M-Pesa Ref: ${item.transactionId || 'N/A'} | Party: ${item.party}`,
         timestamp: serverTimestamp(),
       });
-      setSaveStatus(prev => ({ ...prev, [tid]: 'success' }));
+      setSaveStatus(prev => ({ ...prev, [sid]: 'success' }));
     } catch (error) {
-      setSaveStatus(prev => ({ ...prev, [tid]: 'idle' }));
+      setSaveStatus(prev => ({ ...prev, [sid]: 'idle' }));
       handleFirestoreError(error, OperationType.WRITE, `businesses/${business.id}/${type === 'sale' ? 'sales' : 'expenses'}`);
     }
   };
@@ -257,10 +261,11 @@ export default function MpesaReconciliationPage() {
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic mb-4">Detected Transactions ({extractedItems.length})</p>
                   
                   {extractedItems.map((item, idx) => {
-                    const isEditing = editingId === item.transactionId;
+                    const isEditing = editingId === (item.transactionId || item.tempId);
+                    const statusKey = item.tempId || item.transactionId;
                     
                     return (
-                      <div key={item.transactionId || idx} className="p-6 bg-slate-50 rounded-3xl border border-slate-100 group hover:border-emerald-200 transition-all relative">
+                      <div key={statusKey || idx} className="p-6 bg-slate-50 rounded-3xl border border-slate-100 group hover:border-emerald-200 transition-all relative">
                         <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button 
                             onClick={() => handleEditItem(item)}
@@ -269,7 +274,7 @@ export default function MpesaReconciliationPage() {
                             <Edit2 className="w-3 h-3" />
                           </button>
                           <button 
-                            onClick={() => handleDeleteItem(item.transactionId)}
+                            onClick={() => handleDeleteItem(item.transactionId || item.tempId)}
                             className="p-2 bg-white rounded-lg border border-slate-100 text-slate-400 hover:text-red-500 transition-colors"
                           >
                             <Trash2 className="w-3 h-3" />
@@ -310,23 +315,23 @@ export default function MpesaReconciliationPage() {
                             <div className="mt-6 flex flex-col md:flex-row gap-3">
                                 <Button 
                                   onClick={() => handleSaveAsTransaction(item, 'sale')}
-                                  disabled={saveStatus[item.transactionId || ''] === 'saving' || saveStatus[item.transactionId || ''] === 'success'}
+                                  disabled={saveStatus[statusKey] === 'saving' || saveStatus[statusKey] === 'success'}
                                   className={cn(
                                     "flex-1 h-12 rounded-xl text-white font-bold gap-2 uppercase text-[9px] tracking-widest italic",
-                                    saveStatus[item.transactionId || ''] === 'success' ? "bg-emerald-100 text-emerald-600 pointer-events-none" : "bg-emerald-600 hover:bg-emerald-700"
+                                    saveStatus[statusKey] === 'success' ? "bg-emerald-100 text-emerald-600 pointer-events-none" : "bg-emerald-600 hover:bg-emerald-700"
                                   )}
                                 >
-                                  {saveStatus[item.transactionId || ''] === 'saving' && <RefreshCcw className="w-3 h-3 animate-spin" />}
-                                  {saveStatus[item.transactionId || ''] === 'success' && <CheckCircle className="w-3 h-3" />}
-                                  {saveStatus[item.transactionId || ''] === 'success' ? 'Recorded as Sale' : 'Record as Sale'}
+                                  {saveStatus[statusKey] === 'saving' && <RefreshCcw className="w-3 h-3 animate-spin" />}
+                                  {saveStatus[statusKey] === 'success' && <CheckCircle className="w-3 h-3" />}
+                                  {saveStatus[statusKey] === 'success' ? 'Recorded as Sale' : 'Record as Sale'}
                                 </Button>
                                 <Button 
                                   onClick={() => handleSaveAsTransaction(item, 'expense')}
-                                  disabled={saveStatus[item.transactionId || ''] === 'saving' || saveStatus[item.transactionId || ''] === 'success'}
+                                  disabled={saveStatus[statusKey] === 'saving' || saveStatus[statusKey] === 'success'}
                                   variant="outline"
                                   className={cn(
                                     "flex-1 h-12 rounded-xl border-slate-200 text-slate-600 font-bold gap-2 uppercase text-[9px] tracking-widest italic",
-                                     saveStatus[item.transactionId || ''] === 'success' && "opacity-50"
+                                     saveStatus[statusKey] === 'success' && "opacity-50"
                                   )}
                                 >
                                   Record as Expense
@@ -423,7 +428,7 @@ export default function MpesaReconciliationPage() {
                               setExtractedItems(log.items);
                               setIsExtracting(false);
                               const statuses: any = {};
-                              log.items.forEach((r: any) => statuses[r.transactionId || r.idx || Math.random()] = 'idle');
+                              log.items.forEach((r: any) => statuses[r.tempId || r.transactionId] = 'idle');
                               setSaveStatus(statuses);
                               window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}

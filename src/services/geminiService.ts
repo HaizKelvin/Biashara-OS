@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 // Lazy initialization as per guidelines
 let aiClient: GoogleGenAI | null = null;
@@ -87,24 +87,24 @@ export async function getAIAdvisory(prompt: string, businessData: any) {
 export async function getDailyInsights(businessData: any) {
   try {
     const ai = getAI();
-    const context = `
-      Analyze this business data and provide 3 short "Smart Insights":
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `Analyze this business data and provide 3 short "Smart Insights":
       1. A sales prediction for tomorrow.
       2. An expense alert (if any).
       3. A growth tip.
       
-      Return ONLY a JSON array of 3 strings. No markdown, no extra text.
-      Data: ${JSON.stringify(businessData)}
-    `;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: context,
+      Data: ${JSON.stringify(businessData)}`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING }
+        }
+      }
     });
 
-    const text = response.text || "[]";
-    const jsonStr = text.replace(/```json|```/g, "").trim();
-    return JSON.parse(jsonStr);
+    return JSON.parse(response.text);
   } catch (error) {
     console.error("AI Insights Error:", error);
     return [
@@ -118,31 +118,41 @@ export async function getDailyInsights(businessData: any) {
 export async function parseMpesaMessage(message: string) {
   try {
     const ai = getAI();
-    const context = `
-      You are an expert M-Pesa transaction parser.
-      The user will provide a text block that might contain one or more M-Pesa SMS messages.
-      Extract the following details for EVERY visible transaction message:
-      1. transactionId (e.g., REQ1234567)
-      2. amount (numeric only)
-      3. type (one of: 'RECEIVE', 'SEND', 'PAYBILL', 'TILL', 'WITHDRAW', 'AIRTIME')
-      4. party (Name of sender, receiver, or business)
-      5. timestamp (ISO format if possible, or leave null)
-      6. metadata (phone number if available, account number for paybill if available)
-
-      Return ONLY a JSON array of objects. No markdown.
-      Example: [{"transactionId": "...", "amount": 100, "type": "RECEIVE", "party": "...", "timestamp": "...", "metadata": {}}, ...]
-
-      Message Block: ${message}
-    `;
-
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: context,
+      contents: `Extract detailed M-Pesa transaction data from this text block. 
+      Message Block: ${message}`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              transactionId: { type: Type.STRING, description: "M-Pesa transaction reference ID" },
+              amount: { type: Type.NUMBER, description: "The amount of the transaction" },
+              type: { 
+                type: Type.STRING, 
+                enum: ['RECEIVE', 'SEND', 'PAYBILL', 'TILL', 'WITHDRAW', 'AIRTIME'],
+                description: "The nature of the M-Pesa transaction" 
+              },
+              party: { type: Type.STRING, description: "The sender, receiver, or business name" },
+              timestamp: { type: Type.STRING, description: "Transaction date/time if available" },
+              metadata: {
+                type: Type.OBJECT,
+                properties: {
+                  phoneNumber: { type: Type.STRING },
+                  accountNumber: { type: Type.STRING }
+                }
+              }
+            },
+            required: ['transactionId', 'amount', 'type', 'party']
+          }
+        }
+      }
     });
 
-    const text = response.text || "[]";
-    const jsonStr = text.replace(/```json|```/g, "").trim();
-    return JSON.parse(jsonStr);
+    return JSON.parse(response.text);
   } catch (error) {
     console.error("M-Pesa Parsing Error:", error);
     return [];

@@ -210,6 +210,13 @@ export default function Dashboard() {
           <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight uppercase italic text-shadow-sm">Dashboard Hub</h2>
         </div>
         <div className="flex flex-wrap gap-3">
+          <Button 
+            onClick={handleExportDashboard}
+            variant="outline"
+            className="rounded-2xl border-slate-200 dark:border-slate-800 h-11 px-6 text-slate-500 dark:text-slate-400 font-black flex items-center gap-2 uppercase text-[10px] tracking-widest italic"
+          >
+            <Download className="w-4 h-4" /> Export
+          </Button>
           <select 
             value={timeRange}
             onChange={(e) => setTimeRange(e.target.value as any)}
