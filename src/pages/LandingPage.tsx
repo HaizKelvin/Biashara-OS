@@ -65,7 +65,7 @@ export default function LandingPage() {
             <NavLink href="#contact">Support</NavLink>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <button 
               onClick={() => setIsDarkMode(!isDarkMode)}
               className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
@@ -73,11 +73,11 @@ export default function LandingPage() {
               {isDarkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5" />}
             </button>
             <Link to="/login">
-              <Button variant="ghost" className="text-xs font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 px-4 h-10 hover:bg-slate-100 dark:hover:bg-slate-900">Login</Button>
+              <Button variant="ghost" className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 px-2 sm:px-4 h-10 hover:bg-slate-100 dark:hover:bg-slate-900">Login</Button>
             </Link>
             <Link to="/register">
-              <Button className="bg-slate-950 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white rounded-2xl px-6 h-11 text-xs font-black uppercase tracking-widest transition-all hover:translate-y-[-2px] shadow-xl shadow-slate-200 dark:shadow-none">
-                Anza Sasa
+              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl px-4 sm:px-6 h-11 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all hover:translate-y-[-2px] shadow-xl shadow-emerald-200 dark:shadow-none">
+                Sign Up
               </Button>
             </Link>
           </div>
@@ -85,30 +85,30 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative pt-64 pb-32 px-6 z-10">
+      <section className="relative pt-40 md:pt-64 pb-32 px-6 z-10">
         <div className="max-w-7xl mx-auto text-center">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
           >
-            <div className="inline-flex items-center gap-3 px-6 py-3 bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 rounded-[2rem] text-[10px] font-black uppercase tracking-[0.3em] mb-12 border border-emerald-50 dark:border-slate-800 shadow-xl shadow-emerald-500/5">
+            <div className="inline-flex items-center gap-3 px-6 py-3 bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 rounded-[2rem] text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] mb-12 border border-emerald-50 dark:border-slate-800 shadow-xl shadow-emerald-500/5">
               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" /> AI-Powered Business Hub for Kenya 🇰🇪
             </div>
             
-            <h1 className="text-5xl sm:text-7xl md:text-9xl font-black tracking-[-0.04em] leading-[0.9] md:leading-[0.8] mb-12 italic text-slate-900 dark:text-white">
+            <h1 className="text-4xl sm:text-7xl md:text-9xl font-black tracking-[-0.04em] leading-[0.9] md:leading-[0.8] mb-12 italic text-slate-900 dark:text-white">
               The <span className="text-emerald-500 underline decoration-emerald-200/50 underline-offset-[16px]">Smartest</span> way <br /> 
               to run your biz.
             </h1>
 
-            <p className="text-xl md:text-2xl text-slate-400 dark:text-slate-500 max-w-3xl mx-auto mb-16 font-medium leading-relaxed tracking-tight">
+            <p className="text-lg md:text-2xl text-slate-400 dark:text-slate-500 max-w-3xl mx-auto mb-16 font-medium leading-relaxed tracking-tight">
               Manage sales, track expenses, and chat with your <span className="text-slate-900 dark:text-white font-black">AI Business Advisor</span>. <br className="hidden md:block" />
               Built for Shopkeepers, Wholesale, and Service Stars.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-8">
-              <Link to="/register">
-                <Button className="h-20 px-16 rounded-[2.5rem] bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xl shadow-[0_30px_60px_rgba(16,185,129,0.35)] gap-4 transition-all hover:scale-105 active:scale-95 group relative overflow-hidden">
+              <Link to="/register" className="w-full sm:w-auto">
+                <Button className="w-full sm:w-auto h-16 md:h-20 px-8 md:px-16 rounded-[2rem] md:rounded-[2.5rem] bg-emerald-600 hover:bg-emerald-700 text-white font-black text-lg md:text-xl shadow-[0_30px_60px_rgba(16,185,129,0.35)] gap-4 transition-all hover:scale-105 active:scale-95 group relative overflow-hidden">
                    <div className="absolute inset-0 bg-gradient-to-tr from-emerald-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                    Start Your Journey <ArrowRight className="w-6 h-6 group-hover:translate-x-2 transition-transform" />
                 </Button>

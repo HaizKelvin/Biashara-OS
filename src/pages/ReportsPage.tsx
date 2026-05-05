@@ -303,27 +303,27 @@ Biashara Hub - Financial Analytics
             </CardContent>
          </Card>
 
-         <Card className="rounded-[2.5rem] border-slate-100 shadow-xl shadow-slate-100/50 lg:col-span-2">
+         <Card className="rounded-[2.5rem] border-slate-100 shadow-xl shadow-slate-100/50 lg:col-span-2 overflow-hidden">
            <CardHeader>
              <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-400">Expense Breakdown</CardTitle>
            </CardHeader>
-           <CardContent className="h-[300px] flex items-center justify-center p-8">
+           <CardContent className="p-8">
              {reportData.expenseBreakdown.length === 0 ? (
-               <div className="flex flex-col items-center gap-4 text-slate-300">
+               <div className="flex flex-col items-center justify-center h-[300px] gap-4 text-slate-300">
                  <PieChartIcon className="w-12 h-12 stroke-[1]" />
-                 <p className="text-xs font-bold uppercase tracking-widest">No expenses</p>
+                 <p className="text-xs font-bold uppercase tracking-widest">No expenses recorded</p>
                </div>
              ) : (
-                <div className="w-full h-full flex flex-col md:flex-row items-center">
-                  <div className="flex-1 h-full">
+                <div className="flex flex-col md:flex-row items-center gap-8">
+                  <div className="w-full md:w-1/2 h-[260px] md:h-[320px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
                           data={reportData.expenseBreakdown}
                           cx="50%"
                           cy="50%"
-                          innerRadius={60}
-                          outerRadius={90}
+                          innerRadius={70}
+                          outerRadius={100}
                           paddingAngle={8}
                           dataKey="value"
                         >
@@ -338,15 +338,24 @@ Biashara Hub - Financial Analytics
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="w-full md:w-1/2 grid grid-cols-1 gap-2 mt-4 md:mt-0 overflow-y-auto max-h-[250px] pr-2">
+                  <div className="w-full md:w-1/2 space-y-3 overflow-y-auto max-h-[400px] pr-2 scrollbar-hide">
                     {reportData.expenseBreakdown.map((e, i) => (
-                      <div key={i} className="flex items-center gap-3 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }}></div>
+                      <motion.div 
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        key={i} 
+                        className="flex items-center gap-4 bg-slate-50/50 p-3 rounded-2xl border border-slate-100/50 hover:bg-slate-50 transition-colors"
+                      >
+                        <div className="w-3 h-3 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: COLORS[i % COLORS.length] }}></div>
                         <div className="flex-1 flex justify-between items-center">
-                           <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider truncate mr-2">{e.name}</span>
-                           <span className="text-[10px] font-black text-slate-900 shrink-0">KES {e.value.toLocaleString()}</span>
+                           <div className="flex flex-col">
+                             <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider truncate max-w-[120px]">{e.name}</span>
+                             <span className="text-[9px] font-bold text-slate-400 capitalize">{((e.value / reportData.totalExpenses) * 100).toFixed(1)}% of total</span>
+                           </div>
+                           <span className="text-sm font-black text-slate-900 tabular-nums">KES {e.value.toLocaleString()}</span>
                         </div>
-                      </div>
+                      </motion.div>
                     ))}
                   </div>
                 </div>
