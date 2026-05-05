@@ -27,6 +27,10 @@ export default function SettingsPage() {
   const [bizName, setBizName] = useState(business?.name || '');
   const [editingBiz, setEditingBiz] = useState(false);
   const [activeTab, setActiveTab] = useState('Business Profile');
+  const [showPayModal, setShowPayModal] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<any>(null);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [paying, setPaying] = useState(false);
 
   const pricingPlans = [
     {
@@ -71,6 +75,41 @@ export default function SettingsPage() {
 
   const handleAddStaff = () => {
     alert('Staff management is available in the Pro tier. Please upgrade to invite team members.');
+  };
+
+  const handleUpgrade = (plan: any) => {
+    setSelectedPlan(plan);
+    setShowPayModal(true);
+  };
+
+  const processMpesaPayment = async () => {
+    if (!phoneNumber || phoneNumber.length < 10) {
+      alert('Please enter a valid M-Pesa phone number');
+      return;
+    }
+    setPaying(true);
+    // Simulate STK Push
+    setTimeout(async () => {
+      try {
+        if (business?.id) {
+          const bizRef = doc(db, 'businesses', business.id);
+          await updateDoc(bizRef, { 
+            subscription: {
+              tier: selectedPlan.tier,
+              status: 'active',
+              expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+            }
+          });
+        }
+        setPaying(false);
+        setShowPayModal(false);
+        alert(`Success! Your business is now on the ${selectedPlan.tier} plan.`);
+      } catch (e) {
+        console.error(e);
+        setPaying(false);
+        alert('Payment processing failed. Please try again.');
+      }
+    }, 3000);
   };
 
   return (
@@ -132,6 +171,18 @@ export default function SettingsPage() {
                         <p className="font-bold text-emerald-600 mt-1">Free Trial (7 days remaining)</p>
                         <p className="text-[10px] text-slate-400 mt-1 italic">Renewal starts at KES 500/mo</p>
                       </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-50 space-y-3">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Your Business M-Pesa Till</label>
+                       <div className="flex gap-2">
+                          <Input 
+                            placeholder="e.g. 5123456" 
+                            className="rounded-xl border-slate-100 font-bold"
+                          />
+                          <Button size="sm" variant="outline" className="rounded-xl font-bold uppercase text-[9px] tracking-widest">Save Till</Button>
+                       </div>
+                       <p className="text-[10px] text-slate-400 font-medium italic">Used for generating payment links for your customers.</p>
                     </div>
                 </CardContent>
               </Card>
@@ -214,10 +265,13 @@ export default function SettingsPage() {
                           </li>
                         ))}
                       </ul>
-                      <Button className={cn(
-                        "w-full h-11 rounded-xl text-xs font-black uppercase tracking-widest",
-                        plan.featured ? "bg-emerald-600 hover:bg-emerald-700" : "bg-slate-900"
-                      )}>
+                      <Button 
+                        onClick={() => handleUpgrade(plan)}
+                        className={cn(
+                          "w-full h-11 rounded-xl text-xs font-black uppercase tracking-widest",
+                          plan.featured ? "bg-emerald-600 hover:bg-emerald-700" : "bg-slate-900"
+                        )}
+                      >
                         Upgrade
                       </Button>
                    </Card>
@@ -235,6 +289,65 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+      
+      {showPayModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden border border-slate-100"
+          >
+            <div className="bg-emerald-600 p-8 text-white">
+              <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center mb-4">
+                <Zap className="w-6 h-6" />
+              </div>
+              <h3 className="text-2xl font-black">{selectedPlan?.tier} Upgrade</h3>
+              <p className="text-emerald-100 text-sm">Secure M-Pesa Payment</p>
+            </div>
+            
+            <div className="p-8 space-y-6">
+              <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <span className="text-xs font-black uppercase text-slate-400">Total Amount</span>
+                <span className="text-xl font-black text-slate-900">KES {selectedPlan?.price}</span>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">M-Pesa Phone Number</label>
+                <Input 
+                  placeholder="07XX XXX XXX" 
+                  value={phoneNumber}
+                  onChange={e => setPhoneNumber(e.target.value)}
+                  className="rounded-2xl h-14 font-bold text-lg"
+                  disabled={paying}
+                />
+              </div>
+
+              <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 flex gap-3">
+                <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0" />
+                <p className="text-[10px] font-bold text-amber-800 italic">Enter your M-Pesa PIN on your phone after clicking pay. We only support Kenyan Till payments.</p>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                 <Button 
+                  variant="outline" 
+                  className="flex-1 h-14 rounded-2xl font-black uppercase text-[10px] tracking-widest"
+                  onClick={() => setShowPayModal(false)}
+                  disabled={paying}
+                 >
+                   Cancel
+                 </Button>
+                 <Button 
+                  className="flex-1 h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest gap-2 shadow-xl shadow-emerald-100"
+                  onClick={processMpesaPayment}
+                  disabled={paying}
+                 >
+                   {paying ? 'Processing...' : 'Pay Now'}
+                 </Button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
