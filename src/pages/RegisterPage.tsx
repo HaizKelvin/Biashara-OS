@@ -14,6 +14,18 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [captchaVerified, setCaptchaVerified] = useState(false);
+  const [captchaInput, setCaptchaInput] = useState('');
+  const [mathProblem] = useState(() => ({
+    a: Math.floor(Math.random() * 12) + 1,
+    b: Math.floor(Math.random() * 12) + 1
+  }));
+
+  const handleCaptchaChange = (val: string) => {
+    setCaptchaInput(val);
+    if (parseInt(val) === mathProblem.a + mathProblem.b) {
+      setCaptchaVerified(true);
+    }
+  };
   const [businessName, setBusinessName] = useState('');
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -98,22 +110,43 @@ export default function RegisterPage() {
               />
             </div>
 
-            {/* reCAPTCHA Bot Protection */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between group cursor-pointer hover:bg-white transition-all shadow-sm" onClick={() => setCaptchaVerified(!captchaVerified)}>
-              <div className="flex items-center gap-4">
-                <div className={cn(
-                  "w-6 h-6 border-2 rounded flex items-center justify-center transition-all",
-                  captchaVerified ? "bg-emerald-500 border-emerald-500" : "border-slate-300 group-hover:border-emerald-500"
-                )}>
-                  {captchaVerified && <Check className="text-white w-4 h-4 stroke-[4]" />}
+            {/* Math Challenge Bot Protection */}
+            {!captchaVerified ? (
+              <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 space-y-4 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                    <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Human Verification</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-400 italic">Prove you're human</span>
                 </div>
-                <span className="text-[11px] font-black uppercase text-slate-500 tracking-widest">I am not a bot</span>
+                
+                <div className="flex items-center gap-4">
+                  <div className="bg-white px-6 py-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3">
+                    <span className="text-2xl font-black text-slate-900 tracking-tighter">{mathProblem.a} + {mathProblem.b} =</span>
+                  </div>
+                  <Input 
+                    type="number"
+                    placeholder="?"
+                    className="w-24 h-14 rounded-2xl text-center text-xl font-black focus:ring-emerald-500"
+                    value={captchaInput}
+                    onChange={(e) => handleCaptchaChange(e.target.value)}
+                  />
+                </div>
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-1">Enter the sum to unlock the button</p>
               </div>
-              <div className="flex flex-col items-center opacity-40 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all">
-                <ShieldCheck className="w-5 h-5 text-emerald-600 mb-0.5" />
-                <span className="text-[8px] font-black uppercase text-slate-400 leading-none">reCAPTCHA</span>
-              </div>
-            </div>
+            ) : (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-emerald-50 border border-emerald-100 rounded-3xl p-4 flex items-center justify-center gap-3"
+              >
+                <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-200">
+                  <Check className="text-white w-5 h-5 stroke-[4]" />
+                </div>
+                <span className="text-xs font-black uppercase text-emerald-700 tracking-widest">Identity Verified</span>
+              </motion.div>
+            )}
 
             <Button 
               className={cn(
