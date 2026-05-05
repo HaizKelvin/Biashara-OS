@@ -31,6 +31,13 @@ export default function SettingsPage() {
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [paying, setPaying] = useState(false);
+  
+  // New States for Settings tabs
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [notifEmail, setNotifEmail] = useState(true);
+  const [notifSms, setNotifSms] = useState(false);
+  const [displayName, setDisplayName] = useState(user?.displayName || '');
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const pricingPlans = [
     {
@@ -280,11 +287,132 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {activeTab !== 'Business Profile' && activeTab !== 'Subscription' && (
-            <Card className="py-20 flex flex-col items-center justify-center text-center">
-              <SettingsIcon className="w-12 h-12 text-slate-200 mb-4" />
-              <CardTitle>Coming Soon</CardTitle>
-              <p className="text-slate-500 mt-2">The {activeTab} section is currently under development.</p>
+          {activeTab === 'Account Settings' && (
+            <Card className="rounded-[2.5rem] border-slate-100 shadow-xl shadow-slate-100/50">
+              <CardHeader>
+                <CardTitle>Personal Profile</CardTitle>
+              </CardHeader>
+              <CardContent className="p-8 space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Full Name</label>
+                  <Input 
+                    value={displayName} 
+                    onChange={e => setDisplayName(e.target.value)}
+                    className="rounded-2xl h-14 font-bold"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Email Address</label>
+                  <Input 
+                    value={user?.email || ''} 
+                    disabled
+                    className="rounded-2xl h-14 font-bold bg-slate-50 border-none opacity-60"
+                  />
+                </div>
+                <Button 
+                  className="w-full h-14 rounded-2xl bg-slate-900 text-white font-black uppercase text-[10px] tracking-widest hover:bg-slate-800 transition-all shadow-lg"
+                  onClick={() => {
+                    setSavingSettings(true);
+                    setTimeout(() => {
+                      setSavingSettings(false);
+                      alert('Profile updated successfully!');
+                    }, 1000);
+                  }}
+                  disabled={savingSettings}
+                >
+                  {savingSettings ? 'Saving...' : 'Save Profile Changes'}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeTab === 'Notifications' && (
+            <Card className="rounded-[2.5rem] border-slate-100 shadow-xl shadow-slate-100/50 overflow-hidden">
+              <CardHeader>
+                <CardTitle>Notification Preferences</CardTitle>
+              </CardHeader>
+              <CardContent className="p-8 space-y-6">
+                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div className="space-y-0.5">
+                       <p className="text-sm font-black text-slate-900">Email Reports</p>
+                       <p className="text-[10px] font-bold text-slate-400 uppercase">Weekly business health summary</p>
+                    </div>
+                    <Toggle active={notifEmail} onClick={() => setNotifEmail(!notifEmail)} />
+                 </div>
+                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div className="space-y-0.5">
+                       <p className="text-sm font-black text-slate-900">SMS Alerts</p>
+                       <p className="text-[10px] font-bold text-slate-400 uppercase">Instant debt payment confirmations</p>
+                    </div>
+                    <Toggle active={notifSms} onClick={() => setNotifSms(!notifSms)} />
+                 </div>
+                 <p className="text-[10px] text-center text-slate-400 italic">SMS alerts require a Biashara Pro subscription.</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeTab === 'Security' && (
+            <div className="space-y-6">
+              <Card className="rounded-[2.5rem] border-slate-100 shadow-xl shadow-slate-100/50 overflow-hidden">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                    Two-Step Authentication (2FA)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-8 space-y-6">
+                   <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                         <p className="text-sm font-black text-slate-900">{twoFactorEnabled ? '2FA is Active' : 'Enhance your security'}</p>
+                         <p className="text-xs text-slate-500 max-w-xs">Secure your account with an extra layer of protection. Every login will require a code sent to your phone.</p>
+                      </div>
+                      <Toggle active={twoFactorEnabled} onClick={() => setTwoFactorEnabled(!twoFactorEnabled)} />
+                   </div>
+                   
+                   {twoFactorEnabled && (
+                     <motion.div 
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex gap-4"
+                     >
+                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shrink-0">
+                           <Zap className="w-5 h-5 text-emerald-600" />
+                        </div>
+                        <div>
+                           <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest mb-1">Backup Code</p>
+                           <p className="text-lg font-mono font-black text-emerald-600 tracking-widest">A9B2-C4D5</p>
+                           <p className="text-[9px] text-emerald-700 font-bold italic mt-1">Save this code in a secure place. It's the only way to recover access if you lose your phone.</p>
+                        </div>
+                     </motion.div>
+                   )}
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-[2.5rem] border-slate-100 shadow-xl shadow-slate-100/50 overflow-hidden">
+                <CardHeader>
+                  <CardTitle>Session History</CardTitle>
+                </CardHeader>
+                <CardContent className="p-8">
+                   <div className="divide-y divide-slate-50">
+                      <div className="py-4 flex justify-between items-center">
+                         <div className="space-y-0.5">
+                            <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Primary Session</p>
+                            <p className="text-sm font-black text-slate-900">Chrome on MacBook Pro</p>
+                            <p className="text-[10px] text-slate-400 font-bold italic">Nairobi, Kenya • Active now</p>
+                         </div>
+                         <div className="bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-full text-[9px] font-black uppercase">Official</div>
+                      </div>
+                   </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {activeTab === 'Display Theme' && (
+            <Card className="rounded-[2.5rem] border-slate-100 shadow-xl shadow-slate-100/50 py-20 flex flex-col items-center justify-center text-center">
+              <Moon className="w-12 h-12 text-slate-200 mb-4" />
+              <CardTitle>Theme Settings</CardTitle>
+              <p className="text-slate-500 mt-2">Display theme settings are managed from the top bar for convenience.</p>
             </Card>
           )}
         </div>
@@ -366,6 +494,23 @@ function SidebarLink({ icon, label, active = false, onClick }: { icon: React.Rea
          {label}
        </div>
        <ChevronRight className={cn("w-4 h-4 text-slate-300", active ? "opacity-100" : "opacity-0")} />
+    </button>
+  );
+}
+
+function Toggle({ active, onClick }: { active: boolean, onClick: () => void }) {
+  return (
+    <button 
+      onClick={onClick}
+      className={cn(
+        "w-12 h-6 rounded-full transition-all relative flex items-center px-1",
+        active ? "bg-emerald-500" : "bg-slate-200"
+      )}
+    >
+      <motion.div 
+        animate={{ x: active ? 24 : 0 }}
+        className="w-4 h-4 bg-white rounded-full shadow-sm"
+      />
     </button>
   );
 }

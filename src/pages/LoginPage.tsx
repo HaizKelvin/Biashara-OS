@@ -1,15 +1,17 @@
 import { motion } from 'motion/react';
-import { TrendingUp, Sun, Moon } from 'lucide-react';
+import { TrendingUp, Sun, Moon, Check, ShieldCheck } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useAuth } from '../context/AuthContext';
 import { useState, useEffect } from 'react';
+import { cn } from '../lib/utils';
 
 export default function LoginPage() {
   const { signInWithGoogle } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [captchaVerified, setCaptchaVerified] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('theme');
@@ -81,11 +83,33 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <div className="space-y-8">
+          <div className="space-y-6">
+            {/* reCAPTCHA Bot Protection */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between group cursor-pointer hover:bg-white transition-all shadow-sm" onClick={() => setCaptchaVerified(!captchaVerified)}>
+              <div className="flex items-center gap-4">
+                <div className={cn(
+                  "w-6 h-6 border-2 rounded flex items-center justify-center transition-all",
+                  captchaVerified ? "bg-emerald-500 border-emerald-500" : "border-slate-300 group-hover:border-emerald-500"
+                )}>
+                  {captchaVerified && <Check className="text-white w-4 h-4 stroke-[4]" />}
+                </div>
+                <span className="text-[11px] font-black uppercase text-slate-500 tracking-widest">I am not a bot</span>
+              </div>
+              <div className="flex flex-col items-center opacity-40 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all">
+                <ShieldCheck className="w-5 h-5 text-emerald-600 mb-0.5" />
+                <span className="text-[8px] font-black uppercase text-slate-400 leading-none">reCAPTCHA</span>
+              </div>
+            </div>
+
             <Button 
-              className="w-full h-16 rounded-2xl flex items-center justify-center gap-4 bg-slate-950 text-white font-black text-lg transition-all hover:translate-y-[-2px] active:scale-[0.98] shadow-2xl shadow-slate-900/40"
+              className={cn(
+                "w-full h-16 rounded-2xl flex items-center justify-center gap-4 font-black text-lg transition-all shadow-2xl transition-all",
+                captchaVerified 
+                  ? "bg-slate-950 text-white hover:translate-y-[-2px] active:scale-[0.98] shadow-slate-900/40" 
+                  : "bg-slate-100 text-slate-400 cursor-not-allowed opacity-50"
+              )}
               onClick={handleGoogleLogin}
-              disabled={loading}
+              disabled={loading || !captchaVerified}
             >
               {loading ? (
                 <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
