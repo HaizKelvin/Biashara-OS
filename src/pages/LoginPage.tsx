@@ -98,39 +98,30 @@ export default function LoginPage() {
           <div className="space-y-6">
             {/* Math Challenge Bot Protection */}
             {!captchaVerified ? (
-              <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 space-y-4 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-emerald-600" />
-                    <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Human Verification</span>
+              <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-3 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="w-8 h-8 bg-white rounded-xl border border-slate-100 flex items-center justify-center shadow-sm">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
                   </div>
-                  <span className="text-[10px] font-bold text-slate-400 italic">Prove you're human</span>
+                  <span className="text-[20px] font-black text-slate-900 tracking-tighter">{mathProblem.a} + {mathProblem.b} =</span>
                 </div>
                 
-                <div className="flex items-center gap-4">
-                  <div className="bg-white px-6 py-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3">
-                    <span className="text-2xl font-black text-slate-900 tracking-tighter">{mathProblem.a} + {mathProblem.b} =</span>
-                  </div>
-                  <Input 
-                    type="number"
-                    placeholder="?"
-                    className="w-24 h-14 rounded-2xl text-center text-xl font-black focus:ring-emerald-500"
-                    value={captchaInput}
-                    onChange={(e) => handleCaptchaChange(e.target.value)}
-                  />
-                </div>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-1">Enter the sum to unlock the button</p>
+                <Input 
+                  type="number"
+                  placeholder="?"
+                  className="w-20 h-10 rounded-xl text-center text-lg font-black focus:ring-emerald-500 border-none bg-white shadow-inner"
+                  value={captchaInput}
+                  onChange={(e) => handleCaptchaChange(e.target.value)}
+                />
               </div>
             ) : (
               <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }}
+                initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="bg-emerald-50 border border-emerald-100 rounded-3xl p-4 flex items-center justify-center gap-3"
+                className="bg-emerald-50 border border-emerald-100 rounded-2xl p-3 flex items-center justify-center gap-3"
               >
-                <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-200">
-                  <Check className="text-white w-5 h-5 stroke-[4]" />
-                </div>
-                <span className="text-xs font-black uppercase text-emerald-700 tracking-widest">Identity Verified</span>
+                <Check className="text-emerald-500 w-4 h-4 stroke-[4]" />
+                <span className="text-[10px] font-black uppercase text-emerald-700 tracking-widest">Verified Human</span>
               </motion.div>
             )}
 
